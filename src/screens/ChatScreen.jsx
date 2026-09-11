@@ -15,7 +15,9 @@ import {
   Volume2,
   VolumeX,
   Globe,
-  Radio
+  Radio,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react'
 import { sendChatMessage, transcribeVoiceAudio, synthesizeVoiceSpeech } from '../services/chatService'
 
@@ -23,25 +25,24 @@ const SUGGESTED_QUESTIONS = {
   en: [
     "What fertilizer should I use for my tomato crop?",
     "Should I water my tomato field now?",
-    "How do I cure low nitrogen and yellow leaves?",
-    "What is the organic alternative to Urea?",
-    "Why is my crop at high disease risk?"
+    "What is the soil moisture right now?",
+    "What is the organic alternative to Urea?"
   ],
   ta: [
     "என் தக்காளி பயிருக்கு என்ன உரம் இட வேண்டும்?",
     "இன்று என் வயலுக்கு தண்ணீர் பாய்ச்ச வேண்டுமா?",
-    "இலைகள் மஞ்சள் ஆவதை சரி செய்வது எப்படி?",
+    "மண்ணின் ஈரப்பதம் இப்போது எவ்வளவு?",
     "யூரியாவிற்கு இயற்கை மாற்று என்ன?"
   ],
   hi: [
-    "टमाटर की फसल के लिए कौन सा उर्वरक उपयोग करें?",
+    "टमाटर की फसल के लिए कौन सा खाद उपयोग करें?",
     "क्या मुझे आज अपने खेत में पानी देना चाहिए?",
-    "पीली पत्तियों को ठीक करने का उपाय क्या है?"
+    "मिट्टी में नमी का स्तर क्या है?"
   ],
   te: [
     "టమోటా పంటకు ఏ ఎరువు వేయాలి?",
     "ఈరోజు పొలానికి నీరు పెట్టాలా?",
-    "పసుపు ఆకులను ఎలా నివారించాలి?"
+    "నేలలో తేమ ఎంత ఉంది?"
   ]
 }
 
@@ -58,9 +59,10 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     {
       id: 1,
       sender: 'bot',
-      text: "👋 Hello! I am your **AgriSense Agronomic Assistant**.\n\nI monitor your live field telemetry (soil moisture, temperature, NPK), weather forecasts, and disease scans to give you actionable farming guidance.\n\n🎙️ You can type or **press the microphone button** to speak in Tamil, Hindi, Telugu, or English!",
+      text: "👋 வணக்கம் / Hello! I am your **AgriSense Agricultural Copilot**.\n\nI monitor your live tomato farm sensors, rain forecasts, and crop health to give you quick, reliable guidance.\n\n🎙️ Press the mic button to speak in Tamil, Hindi, Telugu, or English!",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      telemetry: null
+      telemetry: null,
+      language: 'en'
     }
   ])
   const [input, setInput] = useState('')
@@ -68,6 +70,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [activePlayingId, setActivePlayingId] = useState(null)
+  const [pendingActionConfirmation, setPendingActionConfirmation] = useState(null)
 
   const messagesEndRef = useRef(null)
   const mediaRecorderRef = useRef(null)
@@ -82,7 +85,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, loading, isRecording])
+  }, [messages, loading, isRecording, pendingActionConfirmation])
 
   // Handle initial query from another screen
   useEffect(() => {
@@ -102,8 +105,8 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     }
   }, [])
 
-  // Send message handler
-  const handleSend = async (textToSend) => {
+  // Send message handler (maintains STICKY conversation language state)
+  const handleSend = async (textToSend, autoSpeak = false) => {
     const query = textToSend || input
     if (!query.trim() || loading) return
 
@@ -111,16 +114,19 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       id: Date.now(),
       sender: 'user',
       text: query,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      language: selectedLang
     }
 
     setMessages(prev => [...prev, userMsg])
     if (!textToSend) setInput('')
     setLoading(true)
 
+    // Build conversation history with sticky language tags
     const conversationHistory = messages.map(m => ({
       role: m.sender === 'user' ? 'user' : 'assistant',
       content: m.text,
+      language: m.language || selectedLang,
       intent: m.intent || ''
     }))
 
@@ -130,26 +136,44 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         conversationHistory
       })
 
+      // If backend resolved sticky language to Tamil/Hindi/Telugu, sync local state
+      if (res.language && res.language !== selectedLang && ['ta', 'hi', 'te', 'en'].includes(res.language)) {
+        setSelectedLang(res.language)
+      }
+
+      const botReplyText = res.reply || res.answer || "No response received."
+      const botMsgId = Date.now() + 1
+
       const botMsg = {
-        id: Date.now() + 1,
+        id: botMsgId,
         sender: 'bot',
-        text: res.reply || res.answer || "No response received.",
+        text: botReplyText,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         telemetry: res.telemetry_used || res.data,
         intent: res.intent,
+        domain: res.domain,
         sourcesUsed: res.sources_used,
         routingReason: res.routing_reason,
         citedTopics: res.cited_topics,
-        suggestedActions: res.suggested_actions || res.follow_up_suggestions
+        suggestedActions: res.suggested_actions || res.follow_up_suggestions,
+        language: res.language || selectedLang
       }
       setMessages(prev => [...prev, botMsg])
+
+      // If sent via voice, automatically play speech back in user's language
+      if (autoSpeak) {
+        handlePlayVoice(botMsgId, botReplyText, res.language || selectedLang)
+      }
     } catch (err) {
       console.error("Chat error:", err)
       const errorMsg = {
         id: Date.now() + 1,
         sender: 'bot',
-        text: "⚠️ Sorry, I could not reach the backend server. Please verify your connection to the AgriSense API.",
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        text: selectedLang === 'ta'
+          ? "⚠️ மன்னிக்கவும், சர்வரை தொடர்பு கொள்ள முடியவில்லை. தயவுசெய்து மீண்டும் முயற்சிக்கவும்."
+          : "⚠️ Sorry, I could not reach the backend server. Please verify your connection.",
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        language: selectedLang
       }
       setMessages(prev => [...prev, errorMsg])
     } finally {
@@ -195,17 +219,21 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         recognition.onend = () => {
           stopRecordingTimer()
           setIsRecording(false)
+          // If transcript was captured, automatically send it
+          if (input && input.trim()) {
+            handleSend(input.trim(), true)
+          }
         }
 
         recognitionRef.current = recognition
         recognition.start()
         return
       } catch (e) {
-        console.warn("[WebSpeech] SpeechRecognition initialization fallback:", e)
+        console.warn("[WebSpeech] Initialization fallback:", e)
       }
     }
 
-    // MediaRecorder Fallback if WebSpeech not supported
+    // MediaRecorder Fallback if WebSpeech is not available
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const mediaRecorder = new MediaRecorder(stream)
@@ -221,13 +249,33 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         setLoading(true)
         try {
           const res = await transcribeVoiceAudio(audioBlob, selectedLang)
-          if (res.transcript || res.text) {
-            const spokenText = res.transcript || res.text
+          if (res.requires_repeat) {
+            // Low confidence repeat prompt
+            setMessages(prev => [...prev, {
+              id: Date.now(),
+              sender: 'bot',
+              text: res.repeat_message || "I could not hear clearly. Please repeat.",
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              language: selectedLang
+            }])
+            return
+          }
+
+          if (res.requires_action_confirmation) {
+            setPendingActionConfirmation({
+              prompt: res.confirmation_prompt,
+              action: "MOTOR_ON"
+            })
+            return
+          }
+
+          const spokenText = res.transcript || res.text
+          if (spokenText) {
             setInput(spokenText)
-            handleSend(spokenText)
+            handleSend(spokenText, true)
           }
         } catch (err) {
-          console.error("Audio upload transcribe error:", err)
+          console.error("Audio upload error:", err)
         } finally {
           setLoading(false)
         }
@@ -242,7 +290,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       }, 1000)
     } catch (err) {
       console.error("Microphone permission denied:", err)
-      alert("Microphone permission is required for voice messaging. Please enable microphone access in your browser.")
+      alert("Microphone permission is required for voice messaging.")
     }
   }
 
@@ -270,8 +318,9 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
   }
 
   // Text-to-Speech (TTS) Voice Synthesis Playback
-  const handlePlayVoice = async (msgId, text) => {
-    // If currently playing this message, stop
+  const handlePlayVoice = async (msgId, text, langOverride = null) => {
+    const targetLang = langOverride || selectedLang
+
     if (activePlayingId === msgId) {
       if (window.speechSynthesis) window.speechSynthesis.cancel()
       if (currentAudioRef.current) {
@@ -282,7 +331,6 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       return
     }
 
-    // Stop any previously playing audio
     if (window.speechSynthesis) window.speechSynthesis.cancel()
     if (currentAudioRef.current) {
       currentAudioRef.current.pause()
@@ -292,31 +340,27 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     const cleanText = text.replace(/[*#`]/g, '').trim()
     setActivePlayingId(msgId)
 
-    // Option 1: Browser SpeechSynthesis API
+    // Option 1: Browser SpeechSynthesis
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(cleanText)
-      const currentLangObj = LANGUAGES.find(l => l.code === selectedLang) || LANGUAGES[0]
+      const currentLangObj = LANGUAGES.find(l => l.code === targetLang) || LANGUAGES[0]
       utterance.lang = currentLangObj.speechCode
       utterance.rate = 0.95
 
-      utterance.onend = () => {
-        setActivePlayingId(null)
-      }
-      utterance.onerror = () => {
-        playBackendTTS(msgId, cleanText)
-      }
+      utterance.onend = () => setActivePlayingId(null)
+      utterance.onerror = () => playBackendTTS(msgId, cleanText, targetLang)
 
       window.speechSynthesis.speak(utterance)
       return
     }
 
     // Option 2: Backend TTS Endpoint fallback
-    await playBackendTTS(msgId, cleanText)
+    await playBackendTTS(msgId, cleanText, targetLang)
   }
 
-  const playBackendTTS = async (msgId, cleanText) => {
+  const playBackendTTS = async (msgId, cleanText, targetLang) => {
     try {
-      const res = await synthesizeVoiceSpeech(cleanText, selectedLang)
+      const res = await synthesizeVoiceSpeech(cleanText, targetLang)
       if (res.audio_base64 || res.audio_url) {
         const audioSrc = res.audio_base64 || res.audio_url
         const audio = new Audio(audioSrc)
@@ -333,9 +377,18 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     }
   }
 
+  const confirmAction = async () => {
+    setPendingActionConfirmation(null)
+    handleSend(selectedLang === 'ta' ? "ஆம், மோட்டாரை இயக்குங்கள்." : "Yes, turn on irrigation.")
+  }
+
+  const cancelAction = () => {
+    setPendingActionConfirmation(null)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 80px)', background: '#f8fafc' }}>
-      {/* Header with Language Selector & Voice Status */}
+      {/* Header with Sticky Language Selector & Agent Scope */}
       <div className="screen-header" style={{ borderBottom: '1px solid #e2e8f0', background: '#fff', padding: '10px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -343,16 +396,16 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
               <Bot size={22} />
             </div>
             <div>
-              <h2 style={{ margin: 0, fontSize: 16, fontWeight: '700', color: '#0f172a' }}>AgriSense Voice & Chat</h2>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: '700', color: '#0f172a' }}>AgriSense Copilot</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#16a34a', fontWeight: '500' }}>
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }}></span>
-                Multilingual Agronomic Agent
+                Tomato Agronomy Only
               </div>
             </div>
           </div>
 
-          {/* Language Switcher Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f1f5f9', padding: '4px 8px', borderRadius: 12 }}>
+          {/* Sticky Language Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f1f5f9', padding: '4px 10px', borderRadius: 14 }}>
             <Globe size={14} color="#64748b" />
             <select
               value={selectedLang}
@@ -391,8 +444,32 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         </div>
       </div>
 
+      {/* Action Safety Confirmation Banner */}
+      {pendingActionConfirmation && (
+        <div style={{ margin: '10px 16px 0', padding: '12px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: '600', fontSize: 13 }}>
+            <AlertTriangle size={18} />
+            <span>{pendingActionConfirmation.prompt}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button
+              onClick={cancelAction}
+              style={{ padding: '6px 12px', borderRadius: 10, border: '1px solid #d97706', background: 'transparent', color: '#b45309', fontSize: 12, cursor: 'pointer', fontWeight: '600' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmAction}
+              style={{ padding: '6px 14px', borderRadius: 10, border: 'none', background: '#d97706', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: '600' }}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Chat Messages List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -407,7 +484,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
             <div
               style={{
                 maxWidth: '85%',
-                padding: '14px 16px',
+                padding: '12px 16px',
                 borderRadius: 18,
                 borderTopRightRadius: msg.sender === 'user' ? 4 : 18,
                 borderTopLeftRadius: msg.sender === 'bot' ? 4 : 18,
@@ -417,28 +494,27 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
                 fontSize: 14,
                 lineHeight: 1.6,
                 whiteSpace: 'pre-line',
-                border: msg.sender === 'bot' ? '1px solid #e2e8f0' : 'none',
-                position: 'relative'
+                border: msg.sender === 'bot' ? '1px solid #e2e8f0' : 'none'
               }}
             >
-              {/* Header with intent and Audio Speak button */}
+              {/* Header with Domain / Intent and Audio Speak button */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, gap: 8 }}>
                 {msg.intent && msg.intent !== 'GREETING' ? (
-                  <span style={{ fontSize: 10, fontWeight: '700', padding: '2px 8px', borderRadius: 12, background: msg.sender === 'user' ? 'rgba(255,255,255,0.2)' : '#e0f2fe', color: msg.sender === 'user' ? '#fff' : '#0369a1', textTransform: 'uppercase' }}>
-                    🎯 {msg.intent.replace(/_/g, ' ')}
+                  <span style={{ fontSize: 10, fontWeight: '700', padding: '2px 8px', borderRadius: 12, background: msg.sender === 'user' ? 'rgba(255,255,255,0.2)' : (msg.domain === 'OUT_OF_DOMAIN' ? '#fee2e2' : '#e0f2fe'), color: msg.sender === 'user' ? '#fff' : (msg.domain === 'OUT_OF_DOMAIN' ? '#991b1b' : '#0369a1'), textTransform: 'uppercase' }}>
+                    {msg.domain === 'OUT_OF_DOMAIN' ? '⛔ Out of Domain' : `🎯 ${msg.intent.replace(/_/g, ' ')}`}
                   </span>
                 ) : <span />}
 
                 {msg.sender === 'bot' && (
                   <button
-                    onClick={() => handlePlayVoice(msg.id, msg.text)}
+                    onClick={() => handlePlayVoice(msg.id, msg.text, msg.language)}
                     title="Listen to response"
                     style={{
                       border: 'none',
                       background: activePlayingId === msg.id ? '#dcfce7' : '#f1f5f9',
                       color: activePlayingId === msg.id ? '#16a34a' : '#64748b',
                       borderRadius: 12,
-                      padding: '4px 8px',
+                      padding: '3px 8px',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 4,
@@ -465,11 +541,11 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
               {/* Message text */}
               {msg.text}
 
-              {/* Suggested Follow-up Actions Buttons */}
+              {/* Suggested Follow-up Actions */}
               {msg.suggestedActions && msg.suggestedActions.length > 0 && (
-                <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <span style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>
-                    💡 Suggested Next Steps:
+                    💡 Quick Actions:
                   </span>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {msg.suggestedActions.map((act, i) => (
@@ -503,15 +579,15 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', padding: '12px 16px', borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
             <Loader2 className="spin" size={18} color="#16a34a" />
-            <span style={{ fontSize: 13, color: '#64748b' }}>Reasoning over sensor telemetry and agronomy models...</span>
+            <span style={{ fontSize: 13, color: '#64748b' }}>Checking sensors and agronomic rules...</span>
           </div>
         )}
 
         {isRecording && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fecaca', padding: '12px 16px', borderRadius: 16, width: 'fit-content' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fef2f2', border: '1px solid #fecaca', padding: '10px 16px', borderRadius: 16, width: 'fit-content' }}>
             <span className="record-pulse" style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444' }}></span>
             <span style={{ fontSize: 13, fontWeight: '600', color: '#b91c1c' }}>
-              Listening ({LANGUAGES.find(l => l.code === selectedLang)?.name})... {recordingSeconds}s
+              Listening in {LANGUAGES.find(l => l.code === selectedLang)?.name}... ({recordingSeconds}s)
             </span>
           </div>
         )}
@@ -545,7 +621,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         </div>
       )}
 
-      {/* Input Box with Voice & Mic Controls */}
+      {/* Input Box with Voice & Send Controls */}
       <div style={{ padding: '12px 16px', background: '#fff', borderTop: '1px solid #e2e8f0' }}>
         <form
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}

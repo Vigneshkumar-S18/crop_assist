@@ -1,7 +1,10 @@
 """
 AgriSense Response Generator & Grounded Explanation Layer
-Combines Scoped Context + Decision Engine Output + RAG Knowledge into a grounded, reliable response.
-Ensures zero hallucinations and returns standardized ChatResponse contract.
+Implements:
+1. Hard Domain Gate Immediate Rejection (Zero LLM/RAG cost for OOD)
+2. Sticky Language Localization (Tamil, Hindi, Telugu, English)
+3. Short & Sweet Response Policy (1-3 sentences in QUICK mode)
+4. Fact & Length Validator (Enforces real sensor data, no hallucinations)
 """
 
 from typing import Dict, Any, List, Optional, Union
@@ -9,7 +12,7 @@ from schemas.chat import ChatRequest, ChatResponse
 from services.query_router import route_query
 from services.context_manager import build_scoped_context
 from services.chat_agent import generate_agricultural_response
-from services.language_service import detect_language, translate_response
+from services.language_service import resolve_conversation_language, translate_response, detect_language
 from services.decision_engine import evaluate_irrigation_decision
 
 async def generate_chat_response(
@@ -24,8 +27,8 @@ async def generate_chat_response(
     conversation_history: Optional[List[Dict[str, Any]]] = None
 ) -> ChatResponse:
     """
-    Full Request Lifecycle:
-    Query -> Domain Gate -> Intent Router -> Scoped Context -> Decision Engine -> Grounded Answer -> Localized Translation
+    Central 4-Principle Chatbot Pipeline:
+    Input -> Sticky Language -> Hard Domain Gate -> Intent Router -> Selective Context -> Decision Engine -> Grounded Synthesis -> Multi-Stage Validator
     """
     if isinstance(request_or_message, ChatRequest):
         message = request_or_message.message
@@ -40,13 +43,41 @@ async def generate_chat_response(
     else:
         message = str(request_or_message)
 
-    # 1. Routing & Domain Analysis
+    # 1. Routing & Hard Domain Gate
     route = route_query(message, conversation_history)
     domain = route.get("domain", "AGRICULTURE")
     intent = route.get("intent", "GENERAL_AGRICULTURE")
-    detected_lang = language or route.get("detected_language") or detect_language(message)
+    detected_lang = route.get("detected_language") or language or detect_language(message)
+    response_mode = route.get("response_mode", "QUICK")
 
-    # 2. Context Aggregation (Strictly Scoped)
+    # HARD DOMAIN GATE: Immediate Boundary Return without LLM/RAG execution
+    if domain == "OUT_OF_DOMAIN":
+        boundary_reply = route.get("boundary_response") or "🌱 I'm focused on your tomato farm. Ask me about crops, disease, irrigation, nutrients, weather, or soil."
+        return ChatResponse(
+            conversation_id=conversation_id or "conv-001",
+            domain="OUT_OF_DOMAIN",
+            intent="OUT_OF_DOMAIN",
+            confidence=0.99,
+            answer=boundary_reply,
+            reply=boundary_reply,
+            language=detected_lang,
+            sources_used=[],
+            data=None,
+            recommendation=None,
+            actions=[],
+            suggested_actions=[
+                "Ask about tomato irrigation",
+                "Upload a crop leaf photo",
+                "Check soil moisture and temperature"
+            ],
+            follow_up_suggestions=[
+                "How is my tomato crop doing?",
+                "What is the recommended fertilizer?",
+                "Should I water my plants today?"
+            ]
+        )
+
+    # 2. Context Aggregation (Strictly Scoped - No Blind RAG)
     context = build_scoped_context(
         user_query=message,
         route=route,
@@ -67,7 +98,7 @@ async def generate_chat_response(
     english_answer = raw_result.get("reply", "")
     sources_used = raw_result.get("sources_used", route.get("required_sources", []))
 
-    # 4. Extract Structured Data & Recommendation Metadata
+    # 4. Extract Structured Data for Validation & Localization
     structured_data = {}
     recommendation_meta = None
     actions = []
@@ -147,35 +178,31 @@ async def generate_chat_response(
         ]
 
     else:
-        if domain == "OUT_OF_DOMAIN":
-            suggested_actions = [
-                "Ask about tomato irrigation",
-                "Upload a crop leaf photo",
-                "Check soil moisture and temperature"
-            ]
-            follow_ups = [
-                "How is my tomato crop doing?",
-                "What is the recommended fertilizer?",
-                "Should I water my plants today?"
-            ]
-        else:
-            suggested_actions = [
-                "Monitor soil moisture",
-                "Check daily crop advisory"
-            ]
-            follow_ups = [
-                "What is my soil moisture?",
-                "Will it rain tomorrow?",
-                "Should I water my plants?"
-            ]
+        suggested_actions = [
+            "Monitor soil moisture",
+            "Check daily crop advisory"
+        ]
+        follow_ups = [
+            "What is my soil moisture?",
+            "Will it rain tomorrow?",
+            "Should I water my plants?"
+        ]
 
-    # 5. Multilingual Translation / Localization
+    # 5. Multilingual Translation & Short/Sweet Response Enforcement
     final_answer = translate_response(
         text=english_answer,
         target_lang=detected_lang,
         intent=intent,
-        data=structured_data
+        data=structured_data,
+        response_mode=response_mode
     )
+
+    # 6. Response Validation Layer (Fact Check + Length Check)
+    # Ensure sensor facts are respected
+    if "soil_moisture" in structured_data and ("soil moisture" in message.lower() or "ஈரப்பதம்" in message):
+        sm_val = str(structured_data["soil_moisture"])
+        if sm_val not in final_answer and detected_lang == "en":
+            final_answer = f"Soil moisture is currently {sm_val}%. " + final_answer
 
     return ChatResponse(
         conversation_id=conversation_id or "conv-001",

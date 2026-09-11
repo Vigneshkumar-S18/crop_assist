@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 
 class ChatRequest(BaseModel):
     message: str
-    language: Optional[str] = "en"
+    language: Optional[str] = None
     conversation_id: Optional[str] = None
     field_id: Optional[str] = "field-001"
     sensor_data: Optional[Dict[str, Any]] = None

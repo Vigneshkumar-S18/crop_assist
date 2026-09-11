@@ -157,28 +157,28 @@ def normalize_text(text: str) -> str:
         t = re.sub(pattern, repl, t)
     return t
 
-def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+from services.domain_gate import evaluate_domain_gate
+from services.language_service import resolve_conversation_language, detect_language
+
+def route_query(query: str, conversation_history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """
     Understands the user query, determines intent, extracts temporal/agronomic entities,
-    and selectively assigns required data sources.
+    and selectively assigns required data sources without blind RAG.
     """
-    # Try LLM-based routing first if available
-    llm_result = _llm_route_query(query, conversation_history)
-    if llm_result:
-        return llm_result
+    raw_q = str(query).strip()
+    q = normalize_text(raw_q)
+    
+    # 1. RESOLVE STICKY LANGUAGE
+    detected_lang, lang_source = resolve_conversation_language(raw_q, conversation_history=conversation_history)
 
-    q = normalize_text(query)
-    raw_q = query.strip()
-    detected_lang = detect_language(raw_q)
-
-    # 1. DOMAIN GATE CHECK
-    is_agri, gate_reason = check_domain_gate(raw_q)
-    if not is_agri and gate_reason in ["OUT_OF_DOMAIN_PATTERN", "NO_AGRICULTURAL_RELEVANCE"]:
+    # 2. HARD DOMAIN GATE CHECK
+    gate_res = evaluate_domain_gate(raw_q, active_language=detected_lang)
+    if not gate_res["allowed"]:
         return {
             "intent": "OUT_OF_DOMAIN",
-            "domain": "NON_AGRICULTURE",
-            "confidence": 0.98,
-            "entities": {"topic": "General / Non-agriculture"},
+            "domain": "OUT_OF_DOMAIN",
+            "confidence": gate_res["confidence"],
+            "entities": {"topic": "Non-agriculture"},
             "required_sources": [],
             "sources": [],
             "optional_sources": [],
@@ -186,8 +186,15 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
             "requires_decision_engine": False,
             "requires_clarification": False,
             "detected_language": detected_lang,
-            "reason": "Non-agricultural question rejected by Domain Gate."
+            "language_source": lang_source,
+            "boundary_response": gate_res["boundary_response"],
+            "response_mode": "QUICK",
+            "reason": gate_res["reason"]
         }
+
+    # 3. Detect Response Mode (QUICK vs DETAIL)
+    detail_triggers = ["why", "explain", "how come", "give details", "elaborate", "details", "விளக்கு", "ஏன்", "காரணம்", "kyun", "samjhao"]
+    response_mode = "DETAIL" if any(t in q or t in raw_q.lower() for t in detail_triggers) else "QUICK"
 
     # Analyze Conversation History for Context Carry-over
     last_user_query = ""
@@ -216,6 +223,7 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
         "good afternoon", "namaste", "vanakkam", "help", "who are you",
         "what can you do", "agrisense", "start"
     }
+    has_agri_word = any(w in q for w in ["tomato", "plant", "crop", "water", "soil", "disease", "fertilizer", "leaf", "rain", "sensor", "npk", "moisture", "தக்காளி", "மண்", "நீர்", "மழை", "நோய்"])
     if q in greeting_exact or (len(q.split()) <= 2 and any(q.startswith(g) for g in ["hi", "hello", "hey", "namaste", "vanakkam", "howdy"])):
         if not has_agri_word:
             return {
@@ -235,22 +243,22 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
     # -------------------------------------------------------------------------
     # 3. WEATHER ONLY INTENT (Weather only, no sensor, no RAG)
     # -------------------------------------------------------------------------
-    # e.g. "tommorow rain possibility?", "will it rain", "weather forecast", "temperature tomorrow"
     weather_inquiries = [
         "rain possibility", "chance of rain", "will it rain", "rain tomorrow", "rain today",
         "is it going to rain", "rain forecast", "weather forecast", "temperature today",
         "temperature tomorrow", "how hot", "how cold", "humidity forecast", "weather update",
-        "precipitation", "wind speed", "is rain coming", "rain in next", "forecast"
+        "precipitation", "wind speed", "is rain coming", "rain in next", "forecast",
+        "மழை", "வானிலை", "வெப்பநிலை", "mazhai", "barish", "mausam", "varsham", "வருமா", "பெய்யுமா"
     ]
-    is_weather_inquiry = any(w in q for w in weather_inquiries) or (
+    is_weather_inquiry = any(w in q or w in raw_q for w in weather_inquiries) or (
         "rain" in q and not any(w in q for w in ["water", "irrigate", "watering", "pump", "turn on", "should i"])
     )
 
-    if is_weather_inquiry and not any(w in q for w in ["water", "irrigate", "watering", "pump", "turn on", "should i water", "can i water"]):
-        weather_var = "rain_probability" if "rain" in q else ("temperature" if "temp" in q or "hot" in q else "general")
+    if is_weather_inquiry and not any(w in q or w in raw_q for w in ["water", "irrigate", "watering", "pump", "turn on", "should i water", "can i water", "தண்ணீர்", "பாசனம்", "விடலாமா", "விடணுமா"]):
+        weather_var = "rain_probability" if ("rain" in q or "மழை" in raw_q) else ("temperature" if "temp" in q or "வெப்பநிலை" in raw_q else "general")
         return {
             "intent": "WEATHER",
-            "domain": "AGRISENSE",
+            "domain": "AGRICULTURE",
             "confidence": 0.98,
             "entities": {
                 "crop": "tomato",
@@ -263,6 +271,8 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
             "rag_required": False,
             "requires_decision_engine": False,
             "requires_clarification": False,
+            "detected_language": detected_lang,
+            "response_mode": response_mode,
             "reason": f"Meteorological inquiry targeting {time_ref} weather forecast; requires Open-Meteo telemetry only."
         }
 
@@ -272,14 +282,17 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
     soil_keywords = [
         "soil moisture", "moisture level", "soil wet", "soil dry", "how wet is my soil",
         "moisture percentage", "current soil", "soil status", "moisture reading", "is soil dry",
-        "moisture?", "current moisture"
+        "moisture?", "current moisture", "ஈரப்பதம்", "மண் ஈரப்பதம்", "eerappatham", "nami", "tema"
     ]
-    irrigation_action_words = ["water", "watering", "irrigate", "irrigation", "pump", "should i", "can i", "turn on", "when to", "apply water"]
+    irrigation_action_words = [
+        "water", "watering", "irrigate", "irrigation", "pump", "should i", "can i", "turn on", "when to",
+        "apply water", "தண்ணீர் விடலாமா", "பாசனம் செய்யலாமா", "விடணுமா", "விடலாமா"
+    ]
 
-    if any(k in q for k in soil_keywords) and not any(w in q for w in irrigation_action_words):
+    if any(k in q or k in raw_q for k in soil_keywords) and not any(w in q or w in raw_q for w in irrigation_action_words):
         return {
             "intent": "SOIL_STATUS",
-            "domain": "AGRISENSE",
+            "domain": "AGRICULTURE",
             "confidence": 0.97,
             "entities": {
                 "crop": "tomato",
@@ -291,26 +304,27 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
             "rag_required": False,
             "requires_decision_engine": False,
             "requires_clarification": False,
+            "detected_language": detected_lang,
+            "response_mode": response_mode,
             "reason": "Direct soil moisture telemetry inquiry requires IoT sensor readings only."
         }
 
     # -------------------------------------------------------------------------
     # 5. IRRIGATION DECISION (Sensor + Weather + Agronomic Knowledge + Decision Engine)
     # -------------------------------------------------------------------------
-    # Handles: "Should I water tomorrow?", "Can I irrigate?", "Do I need to turn on pump?", "Should I water?"
     irrigation_inquiries = [
         "should i water", "can i water", "when to water", "need water", "turn on irrigation",
         "water my tomato", "water my plants", "start watering", "should i irrigate", "can i irrigate",
         "do i need to water", "is it safe to water", "switch on motor", "turn on pump",
-        "irrigation needed", "water today", "water tomorrow"
+        "irrigation needed", "water today", "water tomorrow", "தண்ணீர் விடலாமா", "தண்ணீர் பாய்ச்ச வேண்டுமா",
+        "பாசனம் செய்யலாமா", "நீர் பாய்ச்சலாமா", "தண்ணீர் பாய்ச்ச", "விடலாமா", "விடணுமா", "sinchai karein",
+        "neelu pettala", "thanni vidalaama", "water pannanuma"
     ]
-    # Also check context carryover: if last query was weather ("rain tomorrow?") and user now says "should I water?"
-    is_irrigation = any(k in q for k in irrigation_inquiries) or (
-        any(w in q for w in ["water", "irrigate", "watering", "pump"]) and any(w in q for w in ["should", "can", "need", "do i", "when", "time", "now", "tomorrow"])
+    is_irrigation = any(k in q or k in raw_q for k in irrigation_inquiries) or (
+        any(w in q or w in raw_q for w in ["water", "irrigate", "watering", "pump", "தண்ணீர்", "பாசனம்", "மோட்டார்", "sinchai", "neelu"]) and any(w in q or w in raw_q for w in ["should", "can", "need", "do i", "when", "time", "now", "tomorrow", "வேண்டுமா", "லாமா", "ணுமா", "karna", "undaa"])
     )
 
     if is_irrigation:
-        # If previous user query was about tomorrow's weather, inherit tomorrow time frame
         if "tomorrow" in last_user_query and time_ref == "today":
             time_ref = "tomorrow"
 
@@ -323,26 +337,27 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
                 "time": time_ref,
                 "topic": "irrigation_rules"
             },
-            "required_sources": ["SENSOR", "WEATHER", "RAG"],
-            "sources": ["SENSOR", "WEATHER", "RAG"],
-            "optional_sources": ["CROP_HISTORY"],
-            "rag_required": True,
+            "required_sources": ["SENSOR", "WEATHER"],
+            "sources": ["SENSOR", "WEATHER"],
+            "optional_sources": [],
+            "rag_required": False,
             "requires_decision_engine": True,
             "requires_clarification": False,
+            "detected_language": detected_lang,
+            "response_mode": response_mode,
             "reason": f"Irrigation decisions require correlating current soil moisture with upcoming {time_ref} rainfall forecast and agronomic thresholds."
         }
 
     # -------------------------------------------------------------------------
-    # 6. FERTILIZER & NPK NUTRITION (RAG + Crop Stage)
+    # 6. FERTILIZER & NPK NUTRITION
     # -------------------------------------------------------------------------
-    # Handles: "fertizer?", "fertilizer for tomato", "npk?", "food for plant", "which fertilizer"
     fertilizer_keywords = [
         "fertilizer", "fertiliser", "npk", "nutrient", "nitrogen", "phosphorus",
-        "potassium", "calcium", "blossom end rot", "feed the crop", "urea", "dap",
-        "micronutrient", "manure", "fertigation", "nutrient deficiency", "plant food",
-        "what should i give my tomato", "which fertilizer", "what fertilizer"
+        "potassium", "calcium", "urea", "dap", "manure", "fertigation", "which fertilizer",
+        "what fertilizer", "உரம்", "யூரியா", "டிஏபி", "பொட்டாஷ்", "மண்புழு", "சாணம்",
+        "urram", "khad", "eruvu"
     ]
-    if any(k in q for k in fertilizer_keywords):
+    if any(k in q or k in raw_q for k in fertilizer_keywords):
         return {
             "intent": "FERTILIZER",
             "domain": "AGRICULTURE",
@@ -351,13 +366,15 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
                 "crop": "tomato",
                 "topic": "fertilization_npk"
             },
-            "required_sources": ["RAG"],
-            "sources": ["RAG"],
-            "optional_sources": ["SENSOR"],
-            "rag_required": True,
+            "required_sources": ["SENSOR"],
+            "sources": ["SENSOR"],
+            "optional_sources": ["RAG"],
+            "rag_required": False,
             "requires_decision_engine": True,
             "requires_clarification": False,
-            "reason": "Nutritional management requires tomato growth stage and NPK knowledge retrieval."
+            "detected_language": detected_lang,
+            "response_mode": response_mode,
+            "reason": "Nutritional management requires soil NPK probe and stage evaluation."
         }
 
     # -------------------------------------------------------------------------
