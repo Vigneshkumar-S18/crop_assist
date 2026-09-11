@@ -214,50 +214,91 @@ def generate_agricultural_response(
         s = context.get("sensors", {"soil_moisture": 28, "temperature": 31, "growth_stage": "Flowering & Fruit Setting"})
         moisture = s.get("soil_moisture", 28)
         growth_stage = s.get("growth_stage", "Flowering & Fruit Setting")
+        temp = s.get("temperature", 31)
         
-        if moisture < 35:
-            status_desc = f"**{moisture}%**, which is **below the optimal target range of 35%–55%** for tomatoes in the {growth_stage} phase. The soil is currently relatively dry."
-        elif moisture > 55:
-            status_desc = f"**{moisture}%**, which is **above optimal range (35%–55%)**, indicating saturated soil."
+        # Stage-specific moisture ranges
+        if "seedling" in growth_stage.lower():
+            target_range = "50% – 60%"
+            min_opt = 50.0
+        elif "fruit" in growth_stage.lower() or "flower" in growth_stage.lower():
+            target_range = "65% – 85%"
+            min_opt = 65.0
+        elif "veg" in growth_stage.lower():
+            target_range = "60% – 85%"
+            min_opt = 60.0
         else:
-            status_desc = f"**{moisture}%**, which is **within the healthy target range (35%–55%)**."
+            target_range = "60% – 80%"
+            min_opt = 60.0
+        
+        if moisture < 40:
+            status_badge = "🔴 Alert (<40% Moisture Deficit)"
+            status_desc = f"**{moisture}%**, which is below the stage target ({target_range}) for {growth_stage}. Soil moisture requires immediate attention."
+        elif moisture < min_opt:
+            status_badge = "🟡 Watch (Approaching Deficit)"
+            status_desc = f"**{moisture}%**, slightly below the optimal {target_range} for {growth_stage}."
+        elif moisture > 85:
+            status_badge = "🔴 Alert (>85% Saturated)"
+            status_desc = f"**{moisture}%**, saturated soil with risk of root oxygen starvation."
+        else:
+            status_badge = "🟢 Normal (Optimal)"
+            status_desc = f"**{moisture}%**, perfectly within the optimal {target_range} for {growth_stage}."
 
         reply = (
-            f"🌱 **Live Soil Moisture Telemetry:**\n\n"
-            f"Your current soil moisture reading is {status_desc}\n\n"
+            f"🌱 **Live Soil Telemetry & Decision Threshold Status:**\n\n"
+            f"• **Status:** {status_badge}\n"
             f"• **Current Moisture:** {moisture}%\n"
-            f"• **Optimal Target Range:** 35% – 55%\n"
-            f"• **Crop Phase:** {growth_stage}"
+            f"• **Stage-Specific Target:** {target_range} ({growth_stage})\n"
+            f"• **Soil Temperature:** {temp}°C (Optimal: 20–30°C)\n\n"
+            f"💡 **Evaluation:** {status_desc}\n\n"
+            f"*(Note: Decision thresholds are prototype decision-support guidelines; actual values depend on sensor probe calibration and soil texture.)*"
         )
 
-    # 5. IRRIGATION DECISION (Sensor + Weather + RAG + Decision Engine)
+    # 5. IRRIGATION DECISION (Sensor + Weather + RAG + Multi-Factor Decision Engine)
     elif intent == "IRRIGATION":
-        s = context.get("sensors", {"soil_moisture": 28, "growth_stage": "Flowering & Fruit Setting"})
+        s = context.get("sensors", {"soil_moisture": 28, "temperature": 31, "growth_stage": "Flowering & Fruit Setting"})
         w = context.get("weather", {"rain_probability_6h": 82, "rain_probability_24h": 91})
         moisture = s.get("soil_moisture", 28)
+        temp = s.get("temperature", 31)
         rain_p = w.get("rain_probability", w.get("rain_probability_6h", 82))
         time_target = entities.get("time", "today").lower()
 
-        if rain_p >= 65:
+        if rain_p >= 60 and moisture < 45:
             reply = (
-                f"⏳ **Recommendation: Postpone Irrigation**\n\n"
-                f"Your soil moisture is currently **{moisture}%** (which is low). However, there is an **{rain_p}% chance of rain** {'tomorrow' if 'tomorrow' in time_target else 'within the next 6-12 hours'}.\n\n"
-                f"**Agronomic Rationale:** Irrigating immediately before heavy rainfall causes root waterlogging, oxygen starvation, and encourages fungal spore germination (e.g. Late Blight).\n\n"
-                f"💡 **Action Plan:** Hold off irrigation. Recheck soil moisture after the expected rain window; if rainfall does not occur and moisture remains below 30%, resume drip irrigation at base.\n\n"
-                f"**Decision:** ⏸️ Postpone irrigation."
+                f"🌧️ **Recommendation: Delay Irrigation (Rain Expected)**\n\n"
+                f"• **Soil Moisture:** {moisture}% 🔴 (Deficit)\n"
+                f"• **Rain Probability:** {rain_p}% 🌧️ ({'Tomorrow' if 'tomorrow' in time_target else 'Next 6–12 Hours'})\n"
+                f"• **Temperature:** {temp}°C\n\n"
+                f"**🧠 Agronomic Multi-Factor Logic:**\n"
+                f"Although soil moisture is currently low ({moisture}%), the imminent rainfall ({rain_p}%) will naturally recharge the root zone. "
+                f"Irrigating now would risk saturation, root hypoxia (Pythium), and nitrogen fertilizer leaching.\n\n"
+                f"💡 **Action Plan:** Delay irrigation and recheck soil moisture after the rainfall event.\n"
+                f"**Motor Status:** ⏸️ OFF (Suppressed for Rain)"
             )
-        elif moisture < 35:
+        elif moisture < 40 and rain_p <= 30:
             reply = (
-                f"💧 **Recommendation: Start Irrigation**\n\n"
-                f"Your soil moisture is at **{moisture}%** (below the 35% threshold), and rain probability is low ({rain_p}%).\n\n"
-                f"💡 **Action Plan:** Run drip irrigation for 30–45 minutes to restore soil moisture to ~45%. Ensure water is delivered at root level to prevent wetting the foliage.\n\n"
-                f"**Decision:** ▶️ Proceed with irrigation."
+                f"💧 **Recommendation: Irrigation Required Immediately**\n\n"
+                f"• **Soil Moisture:** {moisture}% 🔴 (Low Deficit)\n"
+                f"• **Rain Probability:** {rain_p}% ☀️ (Clear Weather)\n"
+                f"• **Temperature:** {temp}°C\n\n"
+                f"**🧠 Agronomic Multi-Factor Logic:**\n"
+                f"Soil moisture is in the alert zone with no rain forecast. Active transpiration under {temp}°C demands root zone hydration to prevent flower abortion and blossom drop.\n\n"
+                f"💡 **Action Plan:** Run precision drip irrigation for 35–45 minutes to restore root zone moisture to ~65%–75%.\n"
+                f"**Motor Status:** ▶️ ON (Automatic Irrigation Enabled)"
+            )
+        elif moisture < 60:
+            reply = (
+                f"🟡 **Recommendation: Schedule Light Irrigation / Watch**\n\n"
+                f"• **Soil Moisture:** {moisture}% 🟡 (Watch Band)\n"
+                f"• **Rain Probability:** {rain_p}%\n\n"
+                f"💡 **Action Plan:** Moisture is in the watch range. Deliver light maintenance watering or await rain if forecasted.\n"
+                f"**Motor Status:** ⏸️ OFF (Standby)"
             )
         else:
             reply = (
                 f"✅ **Recommendation: No Irrigation Needed**\n\n"
-                f"Your soil moisture is **{moisture}%**, which is within the optimal 35%–55% range for {s.get('growth_stage', 'tomato')} plants.\n\n"
-                f"**Decision:** ⏸️ Soil moisture is optimal."
+                f"• **Soil Moisture:** {moisture}% 🟢 (Optimal)\n"
+                f"• **Rain Probability:** {rain_p}%\n\n"
+                f"**Decision:** 🟢 Soil moisture is optimal for current tomato growth."
             )
 
     # 6. FERTILIZER ADVICE (Poshan ML Candidate + Tomato Agronomic Validator + Dual-Track Solution)

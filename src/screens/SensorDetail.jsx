@@ -117,9 +117,21 @@ export default function SensorDetail({ sensor, onBack }) {
           </div>
           <p className="current-label">Current {sensor.name.split(' ').pop()}</p>
           <p className="current-value">{sensor.value}</p>
-          <span className={`sensor-status ${sensor.statusClass}`} style={{ marginTop: 6 }}>
-            {sensor.status}
-          </span>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6 }}>
+            <span className={`sensor-status ${sensor.statusClass}`}>
+              {sensor.status}
+            </span>
+            {sensor.tier && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#f3f4f6', color: '#374151' }}>
+                {sensor.tier}
+              </span>
+            )}
+          </div>
+          {sensor.target && (
+            <span style={{ fontSize: 11.5, color: '#166534', fontWeight: 600, marginTop: 4 }}>
+              🎯 Target Benchmark: {sensor.target}
+            </span>
+          )}
         </div>
 
         {/* Time Range Tabs */}
@@ -158,13 +170,17 @@ export default function SensorDetail({ sensor, onBack }) {
           </div>
         </div>
 
-        {/* Insights */}
+        {/* Agronomic Decision Insights */}
         <div className="insights-card animate-in">
           <h4>
             <Lightbulb />
-            Sensor Insights
+            Agronomic Decision Insights & Thresholds
           </h4>
           <p>{sensor.insight}</p>
+          
+          <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+            💡 <em>AgriSense Decision Notice: Thresholds are stage-aware guidelines. Always verify values against specific sensor probe calibration and soil type.</em>
+          </div>
         </div>
       </div>
     </div>

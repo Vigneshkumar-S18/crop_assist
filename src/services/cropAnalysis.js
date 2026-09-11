@@ -1,3 +1,10 @@
+const getBaseUrl = () => {
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `http://${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+};
+
 export async function analyzeCrop(image, context) {
   const formData = new FormData();
   formData.append("file", image);
@@ -15,7 +22,7 @@ export async function analyzeCrop(image, context) {
     formData.append("rain_probability", context.rainProbability.toString());
   }
   
-  const response = await fetch("http://localhost:8000/analyze", {
+  const response = await fetch(`${getBaseUrl()}/analyze`, {
     method: "POST",
     body: formData
   });

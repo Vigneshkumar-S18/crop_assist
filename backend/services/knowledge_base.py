@@ -9,15 +9,43 @@ from typing import List, Dict, Any
 
 TOMATO_KNOWLEDGE_DOCS = [
     {
-        "id": "irrigation_rules",
-        "topic": "Irrigation & Soil Moisture Management",
-        "keywords": ["water", "irrigate", "irrigation", "soil moisture", "dry", "wet", "watering", "drought", "waterlogging"],
+        "id": "stage_aware_thresholds",
+        "topic": "Stage-Aware Tomato Sensor Decision Thresholds",
+        "keywords": ["threshold", "sensor", "normal", "watch", "alert", "ec", "salinity", "ph", "stage", "calibration"],
         "content": (
-            "Tomato plants have high water requirements, especially during flowering and fruit setting. "
-            "Optimal soil moisture is between 35% and 55%. If soil moisture drops below 30%, irrigation is required. "
-            "However, if rain probability within the next 6-12 hours exceeds 65%, irrigation should be postponed to avoid "
-            "waterlogging, root rot (Pythium), and nutrient leaching. Always water at the base of the plant using drip irrigation "
-            "to avoid wetting the foliage, as leaf moisture promotes fungal spores (Late Blight, Septoria)."
+            "Tomato crop requirements change dynamically with growth stage, soil type, and irrigation method. "
+            "Decision Thresholds (for decision support, not universal agronomic laws): "
+            "1. Soil Moisture: Normal ~60–85% (Seedling: 50–60%, Development: 60–85%, Fruit Set: 65–85%, Red-Fruit: 60–80%), Watch: 40–60%, Alert: <40% (irrigation check). Note: raw capacitive sensor % depends on calibration and soil type. "
+            "2. Temperature: Normal: 20–30°C, Watch: 30–34°C, Alert: >34°C (heat stress, pollen sterility, flower drop). "
+            "3. Humidity: Normal: 60–85%, Watch: 85–90%, Alert: >90% (high fungal/disease risk: Early Blight, Late Blight, Leaf Mold). "
+            "4. Soil pH: Normal: 6.0–6.8, Watch: 5.5–6.0 or 6.8–7.5, Alert: <5.5 (P & Ca lockout) or >7.5 (Fe & Zn deficiency). "
+            "5. Salinity / EC: Normal: <2 dS/m, Watch: 2–4 dS/m, Alert: >4 dS/m (osmotic root stress, leaf scorch). "
+            "6. Rain Probability: Normal: <30%, Watch: 30–60%, Alert: >60% (suppress or postpone irrigation). "
+            "7. Water Quality / TDS: Normal: <500 ppm, Watch: 500-800 ppm, Alert: >800 ppm (leaching required)."
+        )
+    },
+    {
+        "id": "npk_stage_management",
+        "topic": "Stage-Specific NPK Targets & Interpretation",
+        "keywords": ["npk", "nitrogen", "phosphorus", "potassium", "deficiency", "stage", "ppm", "mg/kg", "urea", "dap", "sop"],
+        "content": (
+            "NPK interpretation must follow: Sensor -> Check units/calibration -> Growth Stage -> Target Range -> Actual vs Target -> Action. "
+            "Never use a single fixed threshold for the entire season: "
+            "- Vegetative Stage: High Nitrogen demand (N: 60–75 mg/kg, P: 30–40 mg/kg, K: 40–50 mg/kg) for vegetative canopy and chlorophyll. "
+            "- Flowering Stage: Balanced N with elevated Phosphorus (N: 45–55 mg/kg, P: 45–55 mg/kg, K: 55–65 mg/kg) for flower bud induction and pollen viability. "
+            "- Fruiting / Ripening Stage: High Potassium demand (N: 35–45 mg/kg, P: 30–40 mg/kg, K: 70–85 mg/kg) for fruit expansion, brix sweetness, and firmness. "
+            "Soil test interpretation depends on extraction method and units (ppm / mg/kg vs kg/ha). Guidance from UC IPM, TNAU, and Ontario emphasizes stage-specific tissue and soil sufficiency."
+        )
+    },
+    {
+        "id": "irrigation_multi_factor",
+        "topic": "Multi-Factor Contextual Irrigation Decision Logic",
+        "keywords": ["irrigation", "soil moisture", "rain probability", "smart irrigation", "delay", "motor", "waterlogging", "uga"],
+        "content": (
+            "AgriSense combines soil moisture, weather forecast, and temperature for intelligent irrigation decisions: "
+            "Case A (Rain Expected): Soil Moisture 38% (Low) + Rain Probability 78% (High) -> RECOMMENDATION: Delay irrigation and recheck soil moisture after rainfall to prevent waterlogging and nutrient leaching. "
+            "Case B (Immediate Need): Soil Moisture 32% (Low) + Rain Probability 12% (Low) + Temperature 31°C -> RECOMMENDATION: Irrigation required immediately. Motor: ON (auto mode). "
+            "UGA and UC IPM guidelines emphasize avoiding both excessive depletion and root zone saturation."
         )
     },
     {
@@ -72,53 +100,13 @@ TOMATO_KNOWLEDGE_DOCS = [
         )
     },
     {
-        "id": "yellow_leaf_curl",
-        "topic": "Tomato Yellow Leaf Curl Virus (TYLCV)",
-        "keywords": ["yellow leaf curl", "tylcv", "curling", "stunted", "whitefly", "virus"],
+        "id": "heat_salinity_stress",
+        "topic": "Heat Stress & Salinity Management",
+        "keywords": ["heat stress", "temperature", "hot", "salinity", "ec", "blossom drop", "wilting"],
         "content": (
-            "TYLCV is a viral disease transmitted by the Silverleaf Whitefly (Bemisia tabaci). Symptoms include severe upward leaf curling, "
-            "yellowing of leaf margins, stunted growth, and flower drop. "
-            "Management: Control whitefly vectors using yellow sticky traps and systemic insecticides (Imidacloprid/Neem oil), use silver reflective mulch, "
-            "and rogue out infected plants immediately."
-        )
-    },
-    {
-        "id": "mosaic_virus",
-        "topic": "Tomato Mosaic Virus (ToMV)",
-        "keywords": ["mosaic virus", "mottling", "distortion", "fern-like leaves", "tomv"],
-        "content": (
-            "Tomato Mosaic Virus causes light and dark green mottled patterns on leaves, leaf distortion (shoestring or fern-like appearance), and uneven fruit ripening. "
-            "It is highly contagious and spreads mechanically on hands, tools, and tobacco smoke. "
-            "Management: Disinfect pruning shears with 20% nonfat dry milk or bleach solution, wash hands before handling crops, and plant resistant cultivars."
-        )
-    },
-    {
-        "id": "spider_mites",
-        "topic": "Two-Spotted Spider Mites (Tetranychus urticae)",
-        "keywords": ["spider mites", "webbing", "stippling", "yellow speckles", "mites", "dry weather"],
-        "content": (
-            "Spider mites cause fine yellow stippling/speckling on leaves and webbing on the undersides. Favored by hot, dry, and dusty conditions (>30°C, <50% humidity). "
-            "Management: Spray with horticultural soap, neem oil, or predatory mites (Phytoseiulus persimilis). Maintain adequate field moisture to suppress mite proliferation."
-        )
-    },
-    {
-        "id": "fertilization_npk",
-        "topic": "Tomato Nutrient & Fertilizer Management (NPK)",
-        "keywords": ["fertilizer", "npk", "nitrogen", "phosphorus", "potassium", "flowering", "nutrients", "calcium", "blossom end rot"],
-        "content": (
-            "Tomatoes require balanced nutrition based on growth phase: "
-            "1. Vegetative stage: High Nitrogen (NPK 10-10-10 or 20-10-10) to support vine growth. "
-            "2. Flowering & Fruit stage: High Potassium and Phosphorus (NPK 5-10-20 or 9-15-30) to boost fruit size and sugar content. "
-            "3. Calcium supplementation is essential to prevent Blossom End Rot (black sunken fruit bottom). Apply calcium nitrate or gypsum."
-        )
-    },
-    {
-        "id": "heat_stress",
-        "topic": "Temperature & Heat Stress Management",
-        "keywords": ["heat stress", "temperature", "hot", "sunburn", "blossom drop", "wilting"],
-        "content": (
-            "Optimal temperature for tomato growth is 21-29°C. Temperatures above 35°C cause pollen sterility, blossom drop, and poor fruit set. "
-            "Management: Apply 30% shade netting during peak afternoon sun, maintain soil moisture via drip systems, and apply organic straw mulch to cool the root zone."
+            "Optimal temperature for tomato growth is 20-30°C. Temperature >34°C causes pollen sterility and blossom drop. "
+            "Salinity (EC > 2.0 dS/m) causes osmotic stress, and EC > 4.0 dS/m causes severe yield decline. "
+            "Management: Apply 30% shade netting during peak afternoon sun, flush root zones with low-salinity water, and apply straw mulch."
         )
     }
 ]

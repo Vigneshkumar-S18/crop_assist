@@ -44,35 +44,79 @@ def recommend_fertilizer(
         target_n, target_p, target_k = (50.0, 48.0, 60.0)
         primary_nutrient_focus = "Phosphorus (P) for prolific flower bud initiation and Potassium (K) for high fruit setting rate."
 
-    # Deficiencies & Status
+    # Deficiencies & Status (LOW / NORMAL / HIGH evaluation)
     n_diff = nitrogen - target_n
     p_diff = phosphorus - target_p
     k_diff = potassium - target_k
 
+    def classify_nutrient(diff: float, critical_thresh: float, watch_thresh: float):
+        if diff < -critical_thresh:
+            return "LOW (Deficient)", "🔴 Alert"
+        elif diff < -watch_thresh:
+            return "WATCH (Below Target)", "🟡 Watch"
+        elif diff > 25.0:
+            return "HIGH (Excess)", "🟡 Watch"
+        else:
+            return "NORMAL (Optimal)", "🟢 Normal"
+
+    n_status, n_tier = classify_nutrient(n_diff, 20.0, 8.0)
+    p_status, p_tier = classify_nutrient(p_diff, 18.0, 8.0)
+    k_status, k_tier = classify_nutrient(k_diff, 22.0, 10.0)
+
+    nutrient_status_map = {
+        "N": {
+            "nutrient": "Nitrogen (N)",
+            "current": nitrogen,
+            "target": target_n,
+            "status": n_status,
+            "tier": n_tier,
+            "unit": "mg/kg (ppm equivalent)",
+            "stage_role": "Vegetative canopy & leaf chlorophyll development"
+        },
+        "P": {
+            "nutrient": "Phosphorus (P)",
+            "current": phosphorus,
+            "target": target_p,
+            "status": p_status,
+            "tier": p_tier,
+            "unit": "mg/kg (ppm equivalent)",
+            "stage_role": "Flower bud initiation, root anchorage & cellular ATP energy"
+        },
+        "K": {
+            "nutrient": "Potassium (K)",
+            "current": potassium,
+            "target": target_k,
+            "status": k_status,
+            "tier": k_tier,
+            "unit": "mg/kg (ppm equivalent)",
+            "stage_role": "Fruit sizing, brix sweetness, firmness & stomatal regulation"
+        }
+    }
+
     deficiencies = []
-    if n_diff < -10:
+    if n_diff < -8:
         deficiencies.append({
             "nutrient": "Nitrogen (N)",
             "key": "N",
-            "severity": "Critical" if n_diff < -25 else "Moderate",
+            "severity": "Critical" if n_diff < -20 else "Moderate",
             "current": nitrogen,
             "target": target_n,
             "symptom": "Pale yellowing on older lower leaves, stunted shoot growth, slender vines."
         })
-    if p_diff < -10:
+    if p_diff < -8:
         deficiencies.append({
             "nutrient": "Phosphorus (P)",
             "key": "P",
-            "severity": "Critical" if p_diff < -20 else "Moderate",
+            "severity": "Critical" if p_diff < -18 else "Moderate",
             "current": phosphorus,
             "target": target_p,
             "symptom": "Purplish or bronze discoloration under leaf veins, delayed flower emergence, weak root anchor."
         })
-    if k_diff < -12:
+    if k_diff < -10:
         deficiencies.append({
             "nutrient": "Potassium (K)",
             "key": "K",
-            "severity": "Critical" if k_diff < -25 else "Moderate",
+            "severity": "Critical" if k_diff < -22 else "Moderate",
             "current": potassium,
             "target": target_k,
             "symptom": "Marginal leaf scorching, leaf edges curling upwards, poor fruit set, uneven tomato ripening."
@@ -276,6 +320,7 @@ def recommend_fertilizer(
             "rain_forecast": f"{rain_probability}%",
             "soil_type": soil_type,
             "crop_stage": stage
-        }
+        },
+        "nutrient_status_map": nutrient_status_map,
+        "calibration_notice": "Thresholds are stage-aware decision benchmarks. Sensor values are interpreted in mg/kg (ppm equivalent). Interpretation should be validated against your specific optical/probe sensor calibration."
     }
-

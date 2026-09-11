@@ -1,7 +1,12 @@
-const BASE_URL = "http://localhost:8000";
+const getBaseUrl = () => {
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `http://${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+};
 
 export async function sendChatMessage(message, contextData = {}) {
-  const response = await fetch(`${BASE_URL}/chat`, {
+  const response = await fetch(`${getBaseUrl()}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"

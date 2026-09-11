@@ -1,4 +1,9 @@
-const BASE_URL = "http://localhost:8000";
+const getBaseUrl = () => {
+  if (typeof window !== "undefined" && window.location.hostname) {
+    return `http://${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+};
 
 /**
  * Calls backend /recommend-fertilizer endpoint or falls back to client-side Poshan ML + Agronomic validator
@@ -18,7 +23,7 @@ export async function getFertilizerRecommendation(params = {}) {
   } = params;
 
   try {
-    const response = await fetch(`${BASE_URL}/recommend-fertilizer`, {
+    const response = await fetch(`${getBaseUrl()}/recommend-fertilizer`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
