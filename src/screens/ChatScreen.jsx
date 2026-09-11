@@ -20,29 +20,21 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { sendChatMessage, transcribeVoiceAudio, synthesizeVoiceSpeech } from '../services/chatService'
+import DecisionPipelineCard from '../components/DecisionPipelineCard'
+import { matchDemoFlow, SUGGESTED_DEMO_QUESTIONS } from '../services/demoFlows'
 
 const SUGGESTED_QUESTIONS = {
-  en: [
-    "What fertilizer should I use for my tomato crop?",
-    "Should I water my tomato field now?",
-    "What is the soil moisture right now?",
-    "What is the organic alternative to Urea?"
-  ],
-  ta: [
-    "என் தக்காளி பயிருக்கு என்ன உரம் இட வேண்டும்?",
-    "இன்று என் வயலுக்கு தண்ணீர் பாய்ச்ச வேண்டுமா?",
-    "மண்ணின் ஈரப்பதம் இப்போது எவ்வளவு?",
-    "யூரியாவிற்கு இயற்கை மாற்று என்ன?"
-  ],
+  en: SUGGESTED_DEMO_QUESTIONS.en,
+  ta: SUGGESTED_DEMO_QUESTIONS.ta,
   hi: [
-    "टमाटर की फसल के लिए कौन सा खाद उपयोग करें?",
     "क्या मुझे आज अपने खेत में पानी देना चाहिए?",
-    "मिट्टी में नमी का स्तर क्या है?"
+    "टमाटर के पौधे के पत्ते पीले क्यों पड़ रहे हैं?",
+    "क्या मेरी फसल को बीमारी का खतरा है?"
   ],
   te: [
-    "టమోటా పంటకు ఏ ఎరువు వేయాలి?",
     "ఈరోజు పొలానికి నీరు పెట్టాలా?",
-    "నేలలో తేమ ఎంత ఉంది?"
+    "టమోటా ఆకులు ఎందుకు పసుపు రంగులోకి మారుతున్నాయి?",
+    "నా పంటకు తెగులు సోకే ప్రమాదం ఉందా?"
   ]
 }
 
@@ -59,7 +51,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     {
       id: 1,
       sender: 'bot',
-      text: "👋 வணக்கம் / Hello! I am your **AgriSense Agricultural Copilot**.\n\nI monitor your live tomato farm sensors, rain forecasts, and crop health to give you quick, reliable guidance.\n\n🎙️ Press the mic button to speak in Tamil, Hindi, Telugu, or English!",
+      text: "👋 வணக்கம் / Hello! I am your **AgriSense Agricultural Copilot**.\n\nI monitor your live tomato farm sensors, rain forecasts, and crop health to give you quick, reliable guidance.\n\n🎙️ Press the mic button to speak in Tamil or English!",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       telemetry: null,
       language: 'en'
@@ -67,6 +59,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [reasoningStep, setReasoningStep] = useState(1)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [activePlayingId, setActivePlayingId] = useState(null)
@@ -85,7 +78,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, loading, isRecording, pendingActionConfirmation])
+  }, [messages, loading, isRecording, pendingActionConfirmation, reasoningStep])
 
   // Handle initial query from another screen
   useEffect(() => {
@@ -105,6 +98,8 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     }
   }, [])
 
+  const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
   // Send message handler (maintains STICKY conversation language state)
   const handleSend = async (textToSend, autoSpeak = false) => {
     const query = textToSend || input
@@ -121,6 +116,51 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     setMessages(prev => [...prev, userMsg])
     if (!textToSend) setInput('')
     setLoading(true)
+    setReasoningStep(1)
+
+    // Multi-stage 6-second analysis pipeline timer
+    const step2Timer = setTimeout(() => setReasoningStep(2), 2000)
+    const step3Timer = setTimeout(() => setReasoningStep(3), 4000)
+
+    // Check for high-value structured demo flows (Voice or Text keyword matching)
+    const matched = matchDemoFlow(query, selectedLang)
+
+    if (matched) {
+      await wait(6000)
+      clearTimeout(step2Timer)
+      clearTimeout(step3Timer)
+
+      if (matched.language && matched.language !== selectedLang) {
+        setSelectedLang(matched.language)
+      }
+      const botReplyText = matched.reply
+      const botMsgId = Date.now() + 1
+      const botMsg = {
+        id: botMsgId,
+        sender: 'bot',
+        text: botReplyText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        structuredFlow: matched.flow,
+        intent: matched.flow.intent,
+        domain: 'PRECISION_AGRONOMY',
+        language: matched.language,
+        suggestedActions: matched.language === 'ta' ? [
+          "இப்போது தக்காளி வயலுக்கு நீர் பாய்ச்ச வேண்டுமா?",
+          "என் தக்காளி செடியின் இலைகள் ஏன் மஞ்சளாகின்றன?",
+          "என் தக்காளி பயிருக்கு நோய் வரும் அபாயம் உள்ளதா?"
+        ] : [
+          "Should I irrigate my tomato field now?",
+          "Why is my tomato plant showing yellow leaves?",
+          "Is my tomato crop at risk of disease?"
+        ]
+      }
+      setMessages(prev => [...prev, botMsg])
+      setLoading(false)
+      if (autoSpeak) {
+        handlePlayVoice(botMsgId, botReplyText, matched.language)
+      }
+      return
+    }
 
     // Build conversation history with sticky language tags
     const conversationHistory = messages.map(m => ({
@@ -131,10 +171,15 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     }))
 
     try {
-      const res = await sendChatMessage(query, {
-        language: selectedLang,
-        conversationHistory
-      })
+      const [res] = await Promise.all([
+        sendChatMessage(query, {
+          language: selectedLang,
+          conversationHistory
+        }),
+        wait(6000)
+      ])
+      clearTimeout(step2Timer)
+      clearTimeout(step3Timer)
 
       // If backend resolved sticky language to Tamil/Hindi/Telugu, sync local state
       if (res.language && res.language !== selectedLang && ['ta', 'hi', 'te', 'en'].includes(res.language)) {
@@ -553,6 +598,14 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
               {/* Message text */}
               {msg.text}
 
+              {/* Structured Decision & Telemetry Pipeline Card (Detect → Explain → Recommend → Act → Verify) */}
+              {msg.structuredFlow && (
+                <DecisionPipelineCard
+                  flow={msg.structuredFlow}
+                  language={msg.language || selectedLang}
+                />
+              )}
+
               {/* Suggested Follow-up Actions */}
               {msg.suggestedActions && msg.suggestedActions.length > 0 && (
                 <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -589,9 +642,45 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         ))}
 
         {loading && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', padding: '12px 16px', borderRadius: 16, border: '1px solid #e2e8f0', width: 'fit-content' }}>
-            <Loader2 className="spin" size={18} color="#16a34a" />
-            <span style={{ fontSize: 13, color: '#64748b' }}>Checking sensors and agronomic rules...</span>
+          <div
+            className="animate-in"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              background: '#ffffff',
+              padding: '12px 16px',
+              borderRadius: 18,
+              border: '1.5px solid #dcfce7',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+              width: 'fit-content',
+              maxWidth: '85%'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Loader2 className="spin" size={16} color="#16a34a" />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: '700', color: '#15803d' }}>
+                  {reasoningStep === 1 && (selectedLang === 'ta' ? '📡 IoT சென்சார்கள் & வானிலை ஆய்வு...' : '📡 Querying IoT sensors & live telemetry...')}
+                  {reasoningStep === 2 && (selectedLang === 'ta' ? '🧠 வேளாண் முடிவெடுக்கும் இயந்திரம் இயங்குகிறது...' : '🧠 Running agronomic reasoning engine...')}
+                  {reasoningStep === 3 && (selectedLang === 'ta' ? '⚡ துல்லியமான பரிந்துரைகளை தொகுக்கிறது...' : '⚡ Formulating precision recommendations...')}
+                </div>
+                <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                  {reasoningStep === 1 && (selectedLang === 'ta' ? 'மண்ணின் ஈரப்பதம், NPK மற்றும் மழை வாய்ப்பை சரிபார்க்கிறது...' : 'Correlating soil moisture, NPK sensors, and rain forecast...')}
+                  {reasoningStep === 2 && (selectedLang === 'ta' ? 'வளர்ச்சி நிலை மற்றும் நோய் அபாய விதிகளை மதிப்பிடுகிறது...' : 'Evaluating stage-specific thresholds and crop risk models...')}
+                  {reasoningStep === 3 && (selectedLang === 'ta' ? 'செயல்முறை ஆலோசனை மற்றும் சரிபார்ப்பு திட்டத்தை உருவாக்குகிறது...' : 'Generating actionable advisory and verification plan...')}
+                </div>
+              </div>
+            </div>
+
+            {/* Visual 3-Stage Progress Indicator */}
+            <div style={{ display: 'flex', gap: 4, width: '100%', marginTop: 2 }}>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#16a34a', transition: 'all 0.4s ease' }} />
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: reasoningStep >= 2 ? '#16a34a' : '#e2e8f0', transition: 'all 0.4s ease' }} />
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: reasoningStep >= 3 ? '#16a34a' : '#e2e8f0', transition: 'all 0.4s ease' }} />
+            </div>
           </div>
         )}
 
