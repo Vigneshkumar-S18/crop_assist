@@ -121,11 +121,15 @@ async def chat_with_agrisense(req: LegacyChatRequest):
     return {
         "success": True,
         "reply": result["reply"],
+        "answer": result["reply"],
         "intent": result["intent"],
+        "domain": route.get("domain", "AGRISENSE"),
+        "language": route.get("detected_language", "en"),
         "sources_used": result["sources_used"],
         "routing_reason": result["routing_reason"],
         "telemetry_used": result["telemetry_used"],
-        "cited_topics": result["cited_topics"]
+        "cited_topics": result["cited_topics"],
+        "suggested_actions": result.get("suggested_actions", [])
     }
 
 @app.post("/analyze")

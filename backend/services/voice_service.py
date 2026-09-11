@@ -25,16 +25,30 @@ def transcribe_audio(
 ) -> Dict[str, Any]:
     """
     Transcribes spoken voice audio into text with confidence assessment and action safety checks.
+    Supports OpenAI Whisper and Google Speech Recognition for Tamil, Hindi, Telugu, and English.
     """
     import os
     lang = language[:2].lower() if language else "en"
     openai_key = os.environ.get("OPENAI_API_KEY")
     
     transcript_text = ""
-    confidence = 0.95
+    confidence = 0.0
+
+    # Check minimum audio length
+    if not audio_bytes or len(audio_bytes) < 100:
+        return {
+            "text": "",
+            "transcript": "",
+            "detected_language": lang,
+            "confidence": 0.30,
+            "requires_repeat": True,
+            "repeat_message": REPEAT_PROMPTS.get(lang, REPEAT_PROMPTS["en"]),
+            "requires_action_confirmation": False,
+            "confirmation_prompt": None
+        }
 
     # 1. OpenAI Whisper Integration if Key Available
-    if openai_key and len(audio_bytes) > 200:
+    if openai_key:
         try:
             from openai import OpenAI
             client = OpenAI(api_key=openai_key)
@@ -50,29 +64,35 @@ def transcribe_audio(
         except Exception as e:
             print(f"[VoiceService] Whisper transcription fallback: {e}")
 
-    # 2. Resilient Contextual Fallback
+    # 2. Google Speech Recognition API via speech_recognition
     if not transcript_text:
-        if len(audio_bytes) < 50:
-            # Low audio / silence
-            confidence = 0.40
-            transcript_text = ""
-        else:
-            confidence = 0.92
-            if lang == "ta":
-                transcript_text = "இன்று என் தக்காளி பயிருக்கு தண்ணீர் பாய்ச்ச வேண்டுமா?"
-            elif lang == "hi":
-                transcript_text = "क्या मुझे आज अपने टमाटर के पौधों को पानी देना चाहिए?"
-            elif lang == "te":
-                transcript_text = "ఈరోజు నా టమోటా పంటకు నీరు పెట్టాలా?"
-            else:
-                transcript_text = "Should I water my tomato plants today?"
+        try:
+            import speech_recognition as sr
+            r = sr.Recognizer()
+            lang_code_map = {
+                "ta": "ta-IN",
+                "hi": "hi-IN",
+                "te": "te-IN",
+                "en": "en-IN"
+            }
+            target_sr_lang = lang_code_map.get(lang, "en-IN")
+            
+            # Try loading as WAV
+            audio_file = io.BytesIO(audio_bytes)
+            with sr.AudioFile(audio_file) as source:
+                audio_data = r.record(source)
+                transcript_text = r.recognize_google(audio_data, language=target_sr_lang)
+                confidence = 0.93
+        except Exception as e:
+            print(f"[VoiceService] Google SR info: {e}")
 
     # 3. Confidence Threshold Layer
     requires_repeat = False
     repeat_msg = None
-    if confidence < 0.55:
+    if not transcript_text or confidence < 0.55:
         requires_repeat = True
         repeat_msg = REPEAT_PROMPTS.get(lang, REPEAT_PROMPTS["en"])
+        confidence = 0.35
 
     # 4. Action Safety Confirmation Check (e.g. Motor ON/OFF command)
     requires_action_confirmation = False
@@ -83,7 +103,7 @@ def transcribe_audio(
         "मोटर चालू", "मोटर ऑन", "पानी चालू",
         "మోటార్ ఆన్", "నీరు పెట్టు"
     ]
-    if any(t in transcript_text.lower() for t in motor_triggers):
+    if transcript_text and any(t in transcript_text.lower() for t in motor_triggers):
         requires_action_confirmation = True
         if lang == "ta":
             confirmation_prompt = "மண்ணின் ஈரப்பதம் குறைவாக உள்ளது. பாசன மோட்டாரை இயக்கவா?"
@@ -109,7 +129,14 @@ def synthesize_speech(text: str, language: str = "en") -> Dict[str, Any]:
     """
     Synthesizes grounded text response into audio speech (MP3) returned as base64 data URI.
     """
-    clean_text = text.replace("**", "").replace("#", "").replace("`", "").strip()
+    import re
+    # Remove markdown formatting
+    clean_text = re.sub(r'[*#`_>\-\[\]\(\)]', ' ', text)
+    # Remove emojis
+    clean_text = re.sub(r'[^\w\s\.,\?!%°C\u0B80-\u0BFF\u0900-\u097F\u0C00-\u0C7F]', ' ', clean_text)
+    # Collapse multiple whitespaces
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    
     if len(clean_text) > 400:
         clean_text = clean_text[:400] + "..."
 

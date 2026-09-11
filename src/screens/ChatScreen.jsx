@@ -181,8 +181,11 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
     }
   }
 
+  const capturedTranscriptRef = useRef('')
+
   // Speech-to-Text (STT) Voice Recording
   const startRecording = async () => {
+    capturedTranscriptRef.current = ''
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     const currentLangObj = LANGUAGES.find(l => l.code === selectedLang) || LANGUAGES[0]
 
@@ -192,10 +195,12 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         recognition.lang = currentLangObj.speechCode
         recognition.interimResults = true
         recognition.continuous = false
+        recognition.maxAlternatives = 1
 
         recognition.onstart = () => {
           setIsRecording(true)
           setRecordingSeconds(0)
+          if (timerRef.current) clearInterval(timerRef.current)
           timerRef.current = setInterval(() => {
             setRecordingSeconds(s => s + 1)
           }, 1000)
@@ -207,6 +212,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
             transcript += event.results[i][0].transcript
           }
           if (transcript) {
+            capturedTranscriptRef.current = transcript
             setInput(transcript)
           }
         }
@@ -219,10 +225,11 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
         recognition.onend = () => {
           stopRecordingTimer()
           setIsRecording(false)
-          // If transcript was captured, automatically send it
-          if (input && input.trim()) {
-            handleSend(input.trim(), true)
+          const textToSend = capturedTranscriptRef.current
+          if (textToSend && textToSend.trim()) {
+            handleSend(textToSend.trim(), true)
           }
+          capturedTranscriptRef.current = ''
         }
 
         recognitionRef.current = recognition
@@ -285,6 +292,7 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       mediaRecorderRef.current = mediaRecorder
       setIsRecording(true)
       setRecordingSeconds(0)
+      if (timerRef.current) clearInterval(timerRef.current)
       timerRef.current = setInterval(() => {
         setRecordingSeconds(s => s + 1)
       }, 1000)
@@ -337,14 +345,19 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       currentAudioRef.current = null
     }
 
-    const cleanText = text.replace(/[*#`]/g, '').trim()
+    const cleanText = text.replace(/[*#`_>]/g, '').trim()
     setActivePlayingId(msgId)
 
-    // Option 1: Browser SpeechSynthesis
+    // For regional languages (Tamil, Hindi, Telugu), always use native backend gTTS for crystal-clear accent
+    if (targetLang === 'ta' || targetLang === 'hi' || targetLang === 'te') {
+      await playBackendTTS(msgId, cleanText, targetLang)
+      return
+    }
+
+    // For English: try browser speech synthesis with fallback to backend TTS
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(cleanText)
-      const currentLangObj = LANGUAGES.find(l => l.code === targetLang) || LANGUAGES[0]
-      utterance.lang = currentLangObj.speechCode
+      utterance.lang = 'en-US'
       utterance.rate = 0.95
 
       utterance.onend = () => setActivePlayingId(null)
@@ -354,7 +367,6 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       return
     }
 
-    // Option 2: Backend TTS Endpoint fallback
     await playBackendTTS(msgId, cleanText, targetLang)
   }
 
