@@ -8,18 +8,28 @@ import os
 import re
 import json
 from typing import Dict, Any, List, Optional
+from services.domain_gate import check_domain_gate
+from services.language_service import detect_language
 
 # Supported Intents
 INTENTS = [
     "GREETING",
     "WEATHER",
+    "WEATHER_FORECAST",
     "SOIL_STATUS",
+    "SENSOR_STATUS",
     "IRRIGATION",
+    "IRRIGATION_DECISION",
     "DISEASE",
+    "DISEASE_HISTORY",
+    "DISEASE_RISK",
     "FERTILIZER",
+    "FERTILIZER_RECOMMENDATION",
+    "NUTRIENT_STATUS",
     "CROP_RISK",
     "CROP_STATUS",
-    "SENSOR_STATUS",
+    "WATER_QUALITY",
+    "MOTOR_STATUS",
     "GENERAL_AGRICULTURE",
     "OUT_OF_DOMAIN"
 ]
@@ -159,6 +169,25 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
 
     q = normalize_text(query)
     raw_q = query.strip()
+    detected_lang = detect_language(raw_q)
+
+    # 1. DOMAIN GATE CHECK
+    is_agri, gate_reason = check_domain_gate(raw_q)
+    if not is_agri and gate_reason in ["OUT_OF_DOMAIN_PATTERN", "NO_AGRICULTURAL_RELEVANCE"]:
+        return {
+            "intent": "OUT_OF_DOMAIN",
+            "domain": "NON_AGRICULTURE",
+            "confidence": 0.98,
+            "entities": {"topic": "General / Non-agriculture"},
+            "required_sources": [],
+            "sources": [],
+            "optional_sources": [],
+            "rag_required": False,
+            "requires_decision_engine": False,
+            "requires_clarification": False,
+            "detected_language": detected_lang,
+            "reason": "Non-agricultural question rejected by Domain Gate."
+        }
 
     # Analyze Conversation History for Context Carry-over
     last_user_query = ""
@@ -172,46 +201,12 @@ def route_query(query: str, conversation_history: Optional[List[Dict[str, str]]]
 
     # Temporal Entity Detection
     time_ref = "today"
-    if "tomorrow" in q or "next day" in q:
+    if "tomorrow" in q or "next day" in q or "நாளை" in raw_q or "कल" in raw_q:
         time_ref = "tomorrow"
     elif "next week" in q or "upcoming" in q or "forecast" in q:
         time_ref = "upcoming"
-
-    # -------------------------------------------------------------------------
-    # 1. OUT_OF_DOMAIN INTENT
-    # (Non-agriculture, general world knowledge, philosophy, coding, chit-chat)
-    # -------------------------------------------------------------------------
-    out_of_domain_patterns = [
-        "what is love", "who is the president", "who won", "movie", "song", "lyrics",
-        "write a python", "write code", "javascript", "capital of", "tell me a joke",
-        "meaning of life", "crypto", "bitcoin", "stock market", "cricket score", "football",
-        "how to hack", "who are you married", "translate this"
-    ]
-    # Check if query matches out-of-domain patterns or clearly has no agricultural context
-    is_explicit_ood = any(p in q for p in out_of_domain_patterns)
-    
-    agri_domain_words = [
-        "water", "soil", "rain", "temperature", "humidity", "weather", "disease", "fertilizer",
-        "crop", "tomato", "leaf", "plant", "blight", "spray", "pump", "irrigate", "harvest",
-        "nutrient", "npk", "pest", "farm", "field", "root", "yield", "flower", "fruit", "seed"
-    ]
-    has_agri_word = any(w in q for w in agri_domain_words)
-
-    # Short queries that are neither greeting nor agri
-    if is_explicit_ood or (not has_agri_word and len(q.split()) > 2 and any(q.startswith(w) for w in ["what is ", "who is ", "where is ", "how to make ", "why is "]) and not any(k in q for k in ["irrigation", "soil", "tomato", "crop", "plant", "fertilizer"])):
-        return {
-            "intent": "OUT_OF_DOMAIN",
-            "domain": "NON_AGRICULTURE",
-            "confidence": 0.95,
-            "entities": {"topic": "General / Non-agriculture"},
-            "required_sources": [],
-            "sources": [],
-            "optional_sources": [],
-            "rag_required": False,
-            "requires_decision_engine": False,
-            "requires_clarification": False,
-            "reason": "Non-agricultural question outside of AgriSense precision farming scope."
-        }
+    elif "yesterday" in q or "நேற்று" in raw_q or "कल" in raw_q:
+        time_ref = "yesterday"
 
     # -------------------------------------------------------------------------
     # 2. GREETING INTENT (Zero data retrieval needed)
