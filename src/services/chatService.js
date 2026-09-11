@@ -13,6 +13,7 @@ export async function sendChatMessage(message, contextData = {}) {
     },
     body: JSON.stringify({
       message,
+      language: contextData.language || "en",
       sensor_data: contextData.sensors || {
         soil_moisture: 28,
         temperature: 31,
@@ -32,6 +33,44 @@ export async function sendChatMessage(message, contextData = {}) {
 
   if (!response.ok) {
     throw new Error("Failed to communicate with AgriSense Assistant");
+  }
+
+  return response.json();
+}
+
+export async function transcribeVoiceAudio(audioBlob, language = "en") {
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+  if (language) {
+    formData.append("language", language);
+  }
+
+  const response = await fetch(`${getBaseUrl()}/api/v1/voice/transcribe`, {
+    method: "POST",
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error("Voice transcription failed");
+  }
+
+  return response.json();
+}
+
+export async function synthesizeVoiceSpeech(text, language = "en") {
+  const response = await fetch(`${getBaseUrl()}/api/v1/voice/synthesize`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      text,
+      language
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error("Voice synthesis failed");
   }
 
   return response.json();
