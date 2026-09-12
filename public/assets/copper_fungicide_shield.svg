@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="shieldBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#075985" />
+    </linearGradient>
+    <linearGradient id="copperBottle" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="25%" stop-color="#f0f9ff" />
+      <stop offset="70%" stop-color="#e0f2fe" />
+      <stop offset="100%" stop-color="#7dd3fc" />
+    </linearGradient>
+    <filter id="shieldShadow" x="-10%" y="-5%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0c4a6e" flood-opacity="0.2" />
+    </filter>
+  </defs>
+  <g filter="url(#shieldShadow)">
+    <path d="M 40 35 Q 100 20 160 35 C 165 110, 150 180, 100 220 C 50 180, 35 110, 40 35 Z" fill="url(#shieldBg)" stroke="#38bdf8" stroke-width="2" />
+  </g>
+  <path d="M 50 45 Q 100 34 150 45 C 154 105, 142 165, 100 204 C 58 165, 46 105, 50 45 Z" fill="#082f49" opacity="0.6" stroke="#0ea5e9" stroke-width="1" />
+  
+  <g transform="translate(68, 60)">
+    <rect x="18" y="0" width="28" height="12" rx="3" fill="#38bdf8" stroke="#0284c7" stroke-width="1" />
+    <path d="M 14 12 L 50 12 L 58 28 L 6 28 Z" fill="url(#copperBottle)" stroke="#0284c7" stroke-width="1" />
+    <rect x="6" y="28" width="52" height="70" rx="8" fill="url(#copperBottle)" stroke="#0284c7" stroke-width="1" />
+    <rect x="12" y="44" width="40" height="38" rx="4" fill="#0284c7" />
+    <text x="32" y="58" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8" font-weight="900" text-anchor="middle" fill="#ffffff">COPPER</text>
+    <text x="32" y="70" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="7.5" font-weight="700" text-anchor="middle" fill="#bae6fd">50% WP</text>
+  </g>
+  
+  <text x="100" y="190" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="900" text-anchor="middle" fill="#bae6fd" letter-spacing="0.5">SPORE SHIELD</text>
+  <text x="100" y="204" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8.5" font-weight="700" text-anchor="middle" fill="#38bdf8">RAIN DELAY ACTIVE</text>
+</svg>

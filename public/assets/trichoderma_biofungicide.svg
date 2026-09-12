@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bioJarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ecfdf5" />
+      <stop offset="30%" stop-color="#ffffff" />
+      <stop offset="70%" stop-color="#f0fdf4" />
+      <stop offset="100%" stop-color="#d1fae5" />
+    </linearGradient>
+    <linearGradient id="bioCap" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="bioShadow" x="-10%" y="-5%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#064e3b" flood-opacity="0.15" />
+    </filter>
+  </defs>
+  <g filter="url(#bioShadow)">
+    <rect x="62" y="32" width="76" height="18" rx="4" fill="url(#bioCap)" stroke="#065f46" stroke-width="1" />
+    <rect x="66" y="46" width="68" height="6" fill="#047857" />
+    <path d="M 44 68 C 44 58, 54 52, 66 52 L 134 52 C 146 52, 156 58, 156 68 L 160 190 C 160 206, 146 216, 130 216 L 70 216 C 54 216, 40 206, 40 190 Z" fill="url(#bioJarGrad)" stroke="#6ee7b7" stroke-width="1.5" />
+  </g>
+  
+  <rect x="52" y="80" width="96" height="96" rx="8" fill="#059669" />
+  <circle cx="100" cy="110" r="18" fill="#ecfdf5" />
+  <path d="M 100 98 C 96 104, 92 108, 92 114 C 92 119, 95 122, 100 122 C 105 122, 108 119, 108 114 C 108 108, 104 104, 100 98 Z" fill="#059669" />
+  
+  <text x="100" y="142" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" font-weight="900" text-anchor="middle" fill="#ffffff" letter-spacing="0.5">TRICHODERMA</text>
+  <text x="100" y="156" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8" font-weight="700" text-anchor="middle" fill="#a7f3d0">+ NEEM BIO-SHIELD</text>
+
+  <g transform="translate(62, 186)">
+    <rect x="0" y="0" width="76" height="16" rx="8" fill="#d1fae5" stroke="#a7f3d0" stroke-width="0.8" />
+    <text x="38" y="11.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="7.5" font-weight="800" text-anchor="middle" fill="#065f46">100% ORGANIC</text>
+  </g>
+</svg>

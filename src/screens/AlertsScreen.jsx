@@ -6,6 +6,16 @@ import {
   Info, ExternalLink, Flame, ShieldAlert, Cpu,
   ChevronDown, ChevronUp, Sliders
 } from 'lucide-react'
+import { useFarmSimulation } from '../simulation/SimulationContext'
+
+const ICON_MAP = {
+  Leaf,
+  Droplets,
+  ShieldAlert,
+  Thermometer,
+  Flame,
+  Beaker
+}
 
 const alertsData = [
   {
@@ -99,7 +109,7 @@ const alertsData = [
       'Re-scan soil moisture telemetry 3 hours post-rainfall to verify if target 65%–85% is reached.'
     ],
     actionSteps: [
-      '1. Keep automated irrigation pump in Standby / Suppressed mode.',
+      '1. Keep irrigation pump in Standby / Suppressed mode.',
       '2. Allow incoming rainfall to naturally recharge root zone.',
       '3. Re-evaluate soil moisture telemetry after precipitation event.'
     ],
@@ -118,13 +128,13 @@ const alertsData = [
     icon: Droplets,
     category: 'Smart Irrigation',
     title: 'Soil Moisture Low — Irrigation Required',
-    shortDesc: 'Soil moisture is 32% 🔴, Rain Probability is 12% ☀️, Temperature is 31°C. Precision drip irrigation cycle required immediately.',
-    time: '10:30 AM',
-    currentVal: '32% (Rain: 12%, Temp: 31°C)',
+    shortDesc: 'Soil moisture is 32% 🔴, Rain Probability is 12% ☀️, Temperature is 34°C. Precision drip irrigation cycle required immediately.',
+    time: 'Just now',
+    currentVal: '32% (Rain: 12%, Temp: 34°C)',
     targetVal: '65% – 85%',
     growthStage: 'Flowering & Fruit Setting',
     whyHappened: [
-      'Soil moisture is in the critical deficit zone (<40%) with dry weather (12% rain risk) and elevated ambient temperature (31°C).',
+      'Soil moisture is in the critical deficit zone (<40%) with dry weather (12% rain risk) and elevated ambient temperature (34°C).',
       'Intense plant transpiration under warm sunny conditions causes rapid flower drop and blossom abortion if not rehydrated.'
     ],
     fastSolution: {
@@ -164,18 +174,18 @@ const alertsData = [
     id: 'humidity_disease_risk',
     type: 'critical',
     severity: 'High',
-    tier: '🔴 Alert (>90% RH)',
+    tier: '🔴 Alert (>80% RH)',
     icon: ShieldAlert,
     category: 'Crop Pathology',
     title: 'High Humidity & Fungal Disease Risk',
-    shortDesc: 'Relative Humidity is 92% 🔴 with rain forecast. Extreme microclimate risk for Early Blight and Late Blight sporulation.',
-    time: '09:30 AM',
-    currentVal: '92% RH',
+    shortDesc: 'Relative Humidity is 82% 🔴 with rain forecast (68%). High microclimate risk for Early Blight and Late Blight sporulation.',
+    time: 'Just now',
+    currentVal: '82% RH',
     targetVal: '60% – 85% RH',
     growthStage: 'Flowering & Fruit Setting',
     whyHappened: [
-      'Prolonged relative humidity (>90%) provides the exact film of moisture needed for fungal spores (Alternaria, Phytophthora) to germinate.',
-      'Incoming rain will cause water splashing that transfers pathogen innoculum from soil to lower tomato leaves.'
+      'Prolonged relative humidity (>80%) provides the exact film of moisture needed for fungal spores (Alternaria, Phytophthora) to germinate.',
+      'Incoming rain will cause water splashing that transfers pathogen inoculum from soil to lower tomato leaves.'
     ],
     fastSolution: {
       name: 'Protective Copper Oxychloride (50% WP) or Mancozeb (75% WP)',
@@ -205,7 +215,7 @@ const alertsData = [
     ],
     verification: {
       metric: 'Leaf Pathology Scan',
-      baseline: 'High Fungal Risk (92% RH)',
+      baseline: 'High Fungal Risk (82% RH)',
       target: 'Protected / Lesion Free',
       window: '3 days'
     }
@@ -268,9 +278,9 @@ const alertsData = [
     icon: Thermometer,
     category: 'Thermal Stress',
     title: 'Severe Ambient Heat Stress Warning',
-    shortDesc: 'Canopy temperature reached 35.5°C 🔴. Severe risk of pollen sterility, blossom abortion, and poor fruit set.',
-    time: '01:15 PM',
-    currentVal: '35.5°C',
+    shortDesc: 'Canopy temperature reached 34°C 🔴. Severe risk of pollen sterility, blossom abortion, and poor fruit set.',
+    time: 'Just now',
+    currentVal: '34°C',
     targetVal: '20°C – 30°C',
     growthStage: 'Flowering & Fruit Setting',
     whyHappened: [
@@ -305,7 +315,7 @@ const alertsData = [
     ],
     verification: {
       metric: 'Canopy Temperature',
-      baseline: '35.5°C',
+      baseline: '34°C',
       target: '< 30°C',
       window: 'Immediate'
     }
@@ -353,71 +363,165 @@ const alertsData = [
       '2. Lightly irrigate to integrate into soil solution.',
       '3. Re-test pH in 10 days.'
     ],
-    verification: {
-      metric: 'Soil pH',
-      baseline: '5.6',
-      target: '6.2 – 6.6',
-      window: '10 days'
+      verification: {
+        metric: 'Soil pH',
+        baseline: '5.6',
+        target: '6.2 – 6.6',
+        window: '10 days'
+      }
+    },
+    {
+      id: 'alert_opt_1',
+      type: 'optimal',
+      severity: 'Low',
+      tier: '🟢 Normal',
+      icon: CheckCircle2,
+      category: 'System Health',
+      title: 'Soil Moisture & Nutrients Optimal',
+      shortDesc: 'All parameters are within stage-specific UGA target ranges for tomato flowering.',
+      time: 'Active',
+      currentVal: 'Optimal',
+      targetVal: 'Target Band',
+      growthStage: 'Flowering & Fruit Setting',
+      whyHappened: [
+        'Field sensors indicate balanced soil moisture (65%) and steady NPK levels.',
+        'Optimal conditions support steady flower cluster development and healthy fruit set.'
+      ],
+      fastSolution: {
+        name: 'Maintenance Fertigation (19:19:19 @ 2.0 g/L)',
+        grade: '100% Water Soluble Balanced NPK',
+        dosage: '2.0 g / Liter irrigation water once every 5 days',
+        method: 'Drip fertigation in morning cycle',
+        whySelected: 'Maintains active root vigor and continuous flower retention.',
+        speed: 'Maintenance',
+        confidence: '99%'
+      },
+      organicSolution: {
+        name: 'Enriched Compost Tea + Humic Acid',
+        dosage: '2.5 Liters/acre via regular irrigation',
+        method: 'Drip perimeter drench',
+        whySelected: 'Maintains active microbial life in the tomato root zone.',
+        speed: 'Ongoing',
+        confidence: '95%'
+      },
+      precautions: [
+        'Avoid sudden heavy doses of nitrogen that could cause vegetative runaway over fruit set.',
+        'Inspect drip emitters weekly for uniform flow.'
+      ],
+      actionSteps: [
+        '1. Maintain current balanced watering and nutrition schedule.',
+        '2. Monitor flower clusters for successful fruit pollination.',
+        '3. Re-verify telemetry daily.'
+      ],
+      verification: {
+        metric: 'Soil Moisture & NPK',
+        baseline: 'Optimal',
+        target: 'Maintain',
+        window: 'Daily'
+      }
     }
-  }
-]
+  ]
 
-export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRecommend }) {
-  const [selectedAlert, setSelectedAlert] = useState(null)
-  const [treatmentStatus, setTreatmentStatus] = useState({}) // { [alertId]: 'applied' | 'verified' | 'resolved' }
-  const [isVerifying, setIsVerifying] = useState(false)
-  const [toastMessage, setToastMessage] = useState(null)
-  
-  // Clean click-to-reveal state in alert detail
-  const [hasRevealedPlan, setHasRevealedPlan] = useState(false)
-  const [activeSolutionTab, setActiveSolutionTab] = useState('chemical') // 'chemical' | 'organic'
-  const [expandedSection, setExpandedSection] = useState(null) // 'why' | 'precautions' | 'protocol' | 'verification'
+  export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRecommend }) {
+    const { farmState } = useFarmSimulation()
+    const [selectedAlert, setSelectedAlert] = useState(null)
+    const [treatmentStatus, setTreatmentStatus] = useState({}) // { [alertId]: 'applied' | 'verified' | 'resolved' }
+    const [isVerifying, setIsVerifying] = useState(false)
+    const [toastMessage, setToastMessage] = useState(null)
+    
+    // Clean click-to-reveal state in alert detail
+    const [hasRevealedPlan, setHasRevealedPlan] = useState(false)
+    const [activeSolutionTab, setActiveSolutionTab] = useState('chemical') // 'chemical' | 'organic'
+    const [expandedSection, setExpandedSection] = useState(null) // 'why' | 'precautions' | 'protocol' | 'verification'
 
-  const showToast = (msg) => {
-    setToastMessage(msg)
-    setTimeout(() => setToastMessage(null), 3500)
-  }
-
-  const handleApplyTreatment = (alertId) => {
-    setTreatmentStatus(prev => ({ ...prev, [alertId]: 'applied' }))
-    showToast('🚀 Treatment scheduled & marked as In Progress!')
-  }
-
-  const handleVerifySensors = (alertId) => {
-    setIsVerifying(true)
-    setTimeout(() => {
-      setIsVerifying(false)
-      setTreatmentStatus(prev => ({ ...prev, [alertId]: 'verified' }))
-      showToast('✅ IoT Sensors Verified: Nutrient levels moving back to optimal range!')
-    }, 1400)
-  }
-
-  const handleMarkResolved = (alertId) => {
-    setTreatmentStatus(prev => ({ ...prev, [alertId]: 'resolved' }))
-    showToast('✨ Alert marked as Resolved!')
-    setTimeout(() => {
-      setSelectedAlert(null)
-      setHasRevealedPlan(false)
-    }, 1200)
-  }
-
-  const toggleAccordion = (key) => {
-    setExpandedSection(prev => (prev === key ? null : key))
-  }
-
-  const handleAskAdvisor = (alert) => {
-    if (onNavigateToChat) {
-      onNavigateToChat(`I received an alert for ${alert.title}. How should I apply the recommended fertilizer and organic treatment?`)
+    const showToast = (msg) => {
+      setToastMessage(msg)
+      setTimeout(() => setToastMessage(null), 3500)
     }
-  }
 
-  // =========================================================================
-  // VIEW 1: Detailed Actionable Recommendation View (When an alert is clicked)
-  // =========================================================================
-  if (selectedAlert) {
-    const alert = selectedAlert
-    const status = treatmentStatus[alert.id]
-    const Icon = alert.icon
+    const handleApplyTreatment = (alertId) => {
+      setTreatmentStatus(prev => ({ ...prev, [alertId]: 'applied' }))
+      showToast('🚀 Treatment scheduled & marked as In Progress!')
+    }
+
+    const handleVerifySensors = (alertId) => {
+      setIsVerifying(true)
+      setTimeout(() => {
+        setIsVerifying(false)
+        setTreatmentStatus(prev => ({ ...prev, [alertId]: 'verified' }))
+        showToast('✅ IoT Sensors Verified: Nutrient levels moving back to optimal range!')
+      }, 1400)
+    }
+
+    const handleMarkResolved = (alertId) => {
+      setTreatmentStatus(prev => ({ ...prev, [alertId]: 'resolved' }))
+      showToast('✨ Alert marked as Resolved!')
+      setTimeout(() => {
+        setSelectedAlert(null)
+        setHasRevealedPlan(false)
+      }, 1200)
+    }
+
+    const toggleAccordion = (key) => {
+      setExpandedSection(prev => (prev === key ? null : key))
+    }
+
+    const handleAskAdvisor = (alert) => {
+      if (onNavigateToChat) {
+        onNavigateToChat(`I received an alert for ${alert.title}. How should I apply the recommended fertilizer and organic treatment?`)
+      }
+    }
+
+    // =========================================================================
+    // VIEW 1: Detailed Actionable Recommendation View (When an alert is clicked)
+    // =========================================================================
+    if (selectedAlert) {
+      const blueprint = alertsData.find(a => a.id === selectedAlert.id) || {}
+      const alert = {
+        ...blueprint,
+        ...selectedAlert,
+        currentVal: selectedAlert.currentVal || blueprint.currentVal || 'Deficit detected',
+        targetVal: selectedAlert.targetVal || blueprint.targetVal || 'Optimal target band',
+        growthStage: selectedAlert.growthStage || blueprint.growthStage || 'Flowering & Fruit Setting',
+        whyHappened: selectedAlert.whyHappened || blueprint.whyHappened || [
+          'Live sensor telemetry detected parameters outside the optimal threshold for tomato flowering.',
+          'Immediate targeted adjustment stabilizes plant health and preserves fruit yield.'
+        ],
+        fastSolution: selectedAlert.fastSolution || blueprint.fastSolution || {
+          name: 'Targeted Chemical Nutrient / Irrigation Correction',
+          grade: 'High-Purity Soluble Formulation',
+          dosage: 'Apply per standard crop stage dosage',
+          method: 'Drip fertigation or root application',
+          whySelected: 'Rapidly replenishes root zone nutrient equilibrium to restore leaf chlorophyll and fruit retention.',
+          speed: '2–4 Days',
+          confidence: '95%'
+        },
+        organicSolution: selectedAlert.organicSolution || blueprint.organicSolution || {
+          name: 'Enriched Compost Tea + Organic Mulch',
+          dosage: '2–4 tons/acre or 250 g/plant',
+          method: 'Soil trenching around drip perimeter',
+          whySelected: 'Increases soil organic matter and unlocks bound nutrients organically.',
+          speed: '7–10 Days',
+          confidence: '91%'
+        },
+        precautions: selectedAlert.precautions || blueprint.precautions || [
+          'Check soil moisture before concentrated fertilizer delivery to prevent root scorch.',
+          'Avoid overhead spraying during peak midday heat.'
+        ],
+        actionSteps: selectedAlert.actionSteps || blueprint.actionSteps || [
+          '1. Review prescribed chemical or organic remediation plan.',
+          '2. Apply treatment via drip line or root perimeter.',
+          '3. Re-test IoT sensor telemetry in 3–5 days.'
+        ],
+        verification: selectedAlert.verification || blueprint.verification || {
+          metric: selectedAlert.category || 'Target Metric',
+          baseline: selectedAlert.currentVal || 'Deficit',
+          target: selectedAlert.targetVal || 'Optimal',
+          window: '3–5 days'
+        }
+      }
+      const status = treatmentStatus[alert.id]
+      const Icon = alert.icon || ICON_MAP[alert.category] || Leaf
 
     return (
       <div className="recommendation-detail-page">
@@ -696,6 +800,27 @@ export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRec
 
               {/* Action Buttons Bar */}
               <div className="rec-action-buttons animate-in" style={{ marginTop: 4 }}>
+                {onNavigateToRecommend && (
+                  <button
+                    className="btn-rec-action"
+                    style={{
+                      background: 'linear-gradient(135deg, #15803d 0%, #16a34a 100%)',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      border: 'none',
+                      boxShadow: '0 2px 8px rgba(22, 163, 74, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8
+                    }}
+                    onClick={() => onNavigateToRecommend(alert.growthStage || 'Flowering')}
+                  >
+                    <Sparkles size={16} color="#ffffff" />
+                    Open Complete Fertilizer & Organic Plan
+                  </button>
+                )}
+
                 <button
                   className={`btn-rec-action apply ${status === 'applied' ? 'in-progress' : ''}`}
                   onClick={() => handleApplyTreatment(alert.id)}
@@ -746,9 +871,28 @@ export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRec
   const [stageFilter, setStageFilter] = useState('All')
   const [showThresholdsGuide, setShowThresholdsGuide] = useState(false)
 
+  // Build active alerts list from simulation state
+  const activeSimAlertIds = (farmState.alerts || []).map(a => a.id)
+  
+  // Enrich simulation alerts with detailed remediation blueprints
+  const enrichedSimAlerts = (farmState.alerts || []).map(simAlert => {
+    const blueprint = alertsData.find(a => a.id === simAlert.id) || {}
+    const IconComp = ICON_MAP[simAlert.icon] || blueprint.icon || Leaf
+    return {
+      ...blueprint,
+      ...simAlert,
+      icon: IconComp,
+      isSimulatedActive: true
+    }
+  })
+
+  // Merge with other standard alerts if not already in sim alerts
+  const otherAlerts = alertsData.filter(a => !activeSimAlertIds.includes(a.id))
+  const allCurrentAlerts = [...enrichedSimAlerts, ...otherAlerts]
+
   const filteredAlerts = stageFilter === 'All'
-    ? alertsData
-    : alertsData.filter(a => a.growthStage === stageFilter || a.growthStage === 'All Stages')
+    ? allCurrentAlerts
+    : allCurrentAlerts.filter(a => a.growthStage === stageFilter || a.growthStage === 'All Stages')
 
   const highPriorityCount = filteredAlerts.filter(a => a.severity === 'High' || a.severity === 'Critical').length
 

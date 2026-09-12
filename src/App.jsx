@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import SplashScreen from './screens/SplashScreen.jsx'
 import LoginScreen from './screens/LoginScreen.jsx'
 import HomeScreen from './screens/HomeScreen.jsx'
@@ -11,8 +11,18 @@ import RecommendScreen from './screens/RecommendScreen.jsx'
 import IrrigationScreen from './screens/IrrigationScreen.jsx'
 import ChatScreen from './screens/ChatScreen.jsx'
 import BottomNav from './components/BottomNav.jsx'
+import ControllerApp from './controller/ControllerApp.jsx'
+import { SimulationProvider } from './simulation/SimulationContext.jsx'
 
-export default function App() {
+function MainApp() {
+  // Check if current URL is directly asking for controller
+  const isControllerRoute = () => {
+    const path = window.location.pathname.toLowerCase()
+    const search = window.location.search.toLowerCase()
+    return path.includes('/controller') || search.includes('controller') || search.includes('view=controller')
+  }
+
+  const [isController, setIsController] = useState(isControllerRoute())
   const [currentScreen, setCurrentScreen] = useState('splash')
   const [activeTab, setActiveTab] = useState('home')
   const [selectedSensor, setSelectedSensor] = useState(null)
@@ -21,6 +31,27 @@ export default function App() {
   const [chatInitialQuery, setChatInitialQuery] = useState(null)
   const [recommendStage, setRecommendStage] = useState('Flowering')
 
+  // Listen to popstate or direct URL changes
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsController(isControllerRoute())
+    }
+    window.addEventListener('popstate', handleLocationChange)
+    return () => window.removeEventListener('popstate', handleLocationChange)
+  }, [])
+
+  // If controller view is active, render ControllerApp
+  if (isController) {
+    return (
+      <div className="mobile-frame">
+        <ControllerApp onSwitchToDashboard={() => {
+          window.history.pushState({}, '', '/')
+          setIsController(false)
+        }} />
+      </div>
+    )
+  }
+
   // Splash -> Login transition
   const handleSplashEnd = () => setCurrentScreen('login')
   
@@ -28,6 +59,12 @@ export default function App() {
   const handleLogin = () => {
     setCurrentScreen('app')
     setActiveTab('home')
+  }
+
+  // Open controller
+  const handleOpenController = () => {
+    window.history.pushState({}, '', '/controller')
+    setIsController(true)
   }
 
   // Navigate to sensor detail
@@ -115,6 +152,7 @@ export default function App() {
             onSensorClick={handleSensorClick}
             onWeatherClick={() => handleTabChange('weather')}
             onAlertsClick={() => handleTabChange('alerts')}
+            onOpenController={handleOpenController}
           />
         )
       case 'scan':
@@ -154,11 +192,11 @@ export default function App() {
             onSensorClick={handleSensorClick}
             onWeatherClick={() => handleTabChange('weather')}
             onAlertsClick={() => handleTabChange('alerts')}
+            onOpenController={handleOpenController}
           />
         )
     }
   }
-
 
   return (
     <div className="mobile-frame">
@@ -169,5 +207,13 @@ export default function App() {
         <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <SimulationProvider>
+      <MainApp />
+    </SimulationProvider>
   )
 }

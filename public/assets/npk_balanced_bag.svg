@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="100%" height="100%">
+  <defs>
+    <linearGradient id="npkBagBody" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e0f2fe" />
+      <stop offset="12%" stop-color="#f0fdf4" />
+      <stop offset="50%" stop-color="#ffffff" />
+      <stop offset="85%" stop-color="#f0fdf4" />
+      <stop offset="100%" stop-color="#bbf7d0" />
+    </linearGradient>
+    <linearGradient id="npkBagTop" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a" />
+      <stop offset="50%" stop-color="#22c55e" />
+      <stop offset="100%" stop-color="#15803d" />
+    </linearGradient>
+    <linearGradient id="npkBadgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <filter id="npkShadow" x="-10%" y="-5%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.15" />
+    </filter>
+  </defs>
+  <g filter="url(#npkShadow)">
+    <path d="M 36 28 Q 100 24 164 28 L 168 40 Q 100 36 32 40 Z" fill="url(#npkBagTop)" stroke="#15803d" stroke-width="0.8" />
+    <path d="M 35 34 Q 100 30 165 34" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="3,2.5" fill="none" opacity="0.9" />
+    <path d="M 32 40 C 24 95, 20 160, 26 210 C 28 218, 42 222, 100 222 C 158 222, 172 218, 174 210 C 180 160, 176 95, 168 40 Q 100 36 32 40 Z" fill="url(#npkBagBody)" stroke="#86efac" stroke-width="1.2" />
+  </g>
+  <rect x="52" y="56" width="96" height="4" rx="2" fill="#16a34a" opacity="0.9" />
+  <text x="100" y="88" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="900" text-anchor="middle" fill="#0f172a" letter-spacing="1">NPK 19:19:19</text>
+  <text x="100" y="106" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="800" text-anchor="middle" fill="#16a34a" letter-spacing="0.5">BALANCED FERTIGATION</text>
+  
+  <g transform="translate(60, 118)">
+    <rect x="0" y="0" width="80" height="42" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1" />
+    <text x="40" y="16" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="800" text-anchor="middle" fill="#15803d">100% SOLUBLE</text>
+    <text x="40" y="32" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="9" font-weight="600" text-anchor="middle" fill="#475569">MID-STAGE FLOWERING</text>
+  </g>
+
+  <g transform="translate(68, 174)">
+    <rect x="0" y="0" width="64" height="16" rx="8" fill="url(#npkBadgeGrad)" />
+    <text x="32" y="11.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="8.5" font-weight="800" text-anchor="middle" fill="#ffffff">UGA TARGET OPTIMAL</text>
+  </g>
+  <path d="M 38 214 Q 100 216 162 214" stroke="#86efac" stroke-width="1" stroke-dasharray="2,2" />
+</svg>

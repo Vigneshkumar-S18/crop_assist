@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { MapPin, Droplets, Wind, Eye, Thermometer, Search, Navigation, X, Check, ChevronDown, ArrowLeft } from 'lucide-react'
+import { MapPin, Droplets, Wind, Eye, Thermometer, Search, Navigation, X, Check, ChevronDown, ArrowLeft, CloudRain } from 'lucide-react'
 import { getWeather, getWeatherMapping, searchLocations } from '../services/weatherService'
+import { useFarmSimulation } from '../simulation/SimulationContext'
 
 const POPULAR_HUBS = [
+  { name: 'My Tomato Farm • Zone 1', lat: 11.0168, lon: 76.9558 },
   { name: 'Coimbatore, Tamil Nadu', lat: 11.0168, lon: 76.9558 },
   { name: 'Nashik, Maharashtra', lat: 19.9975, lon: 73.7898 },
   { name: 'Bengaluru, Karnataka', lat: 12.9716, lon: 77.5946 },
@@ -13,8 +15,10 @@ const POPULAR_HUBS = [
 ]
 
 export default function WeatherScreen({ onBack }) {
+  const { farmState, mode } = useFarmSimulation()
+  const simWeather = farmState.weather
   const [weatherData, setWeatherData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [location, setLocation] = useState(POPULAR_HUBS[0])
 
@@ -101,34 +105,30 @@ export default function WeatherScreen({ onBack }) {
     )
   }
 
-  if (loading && !weatherData) {
-    return (
-      <div>
-        <div className="screen-header">
-          <h1 style={{ flex: 1, textAlign: 'center' }}>Weather</h1>
-        </div>
-        <div className="weather-screen" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <div>Loading weather data...</div>
-        </div>
-      </div>
-    )
+  const current = weatherData?.current || {
+    temperature_2m: simWeather?.temperature || 29,
+    relative_humidity_2m: simWeather?.humidity || 65,
+    wind_speed_10m: 12,
+    visibility: 10000,
+    apparent_temperature: (simWeather?.temperature || 29) + 2,
+    weather_code: simWeather?.rain_probability > 50 ? 61 : 1
   }
 
-  if (error && !weatherData) {
-    return (
-      <div>
-        <div className="screen-header">
-          <h1 style={{ flex: 1, textAlign: 'center' }}>Weather</h1>
-        </div>
-        <div className="weather-screen" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <div style={{ color: 'red' }}>{error || "No data available."}</div>
-        </div>
-      </div>
-    )
+  const hourly = weatherData?.hourly || {
+    time: Array.from({ length: 24 }, (_, i) => new Date(Date.now() + i * 3600000).toISOString()),
+    temperature_2m: Array.from({ length: 24 }, (_, i) => (simWeather?.temperature || 29) - 4 + Math.sin(i / 3) * 5),
+    precipitation_probability: Array.from({ length: 24 }, () => simWeather?.rain_probability || 20),
+    weather_code: Array.from({ length: 24 }, () => (simWeather?.rain_probability > 50 ? 61 : 1))
   }
 
-  const { current, hourly, daily } = weatherData;
-  const currentMapping = getWeatherMapping(current.weather_code);
+  const daily = weatherData?.daily || {
+    time: Array.from({ length: 7 }, (_, i) => new Date(Date.now() + i * 86400000).toISOString()),
+    temperature_2m_max: [simWeather?.temperature || 29, 30, 31, 29, 28, 29, 30],
+    temperature_2m_min: [(simWeather?.temperature || 29) - 8, 21, 22, 20, 19, 20, 21],
+    weather_code: [simWeather?.rain_probability > 50 ? 61 : 1, 1, 2, 3, 1, 0, 1]
+  }
+
+  const currentMapping = getWeatherMapping(current.weather_code)
 
   // Format hourly data (next 12 hours)
   const currentHourIndex = hourly.time.findIndex(t => new Date(t) > new Date())

@@ -44,7 +44,7 @@ TOMATO_KNOWLEDGE_DOCS = [
         "content": (
             "AgriSense combines soil moisture, weather forecast, and temperature for intelligent irrigation decisions: "
             "Case A (Rain Expected): Soil Moisture 38% (Low) + Rain Probability 78% (High) -> RECOMMENDATION: Delay irrigation and recheck soil moisture after rainfall to prevent waterlogging and nutrient leaching. "
-            "Case B (Immediate Need): Soil Moisture 32% (Low) + Rain Probability 12% (Low) + Temperature 31°C -> RECOMMENDATION: Irrigation required immediately. Motor: ON (auto mode). "
+            "Case B (Immediate Need): Soil Moisture 32% (Low) + Rain Probability 12% (Low) + Temperature 31°C -> RECOMMENDATION: Irrigation required immediately. Motor: ON. "
             "UGA and UC IPM guidelines emphasize avoiding both excessive depletion and root zone saturation."
         )
     },

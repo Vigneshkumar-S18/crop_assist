@@ -1,8 +1,10 @@
 import React, { useState, useRef } from 'react'
 import { Camera, Image as ImageIcon, Sparkles, Sun, Target, Loader2, AlertOctagon, RotateCcw, CheckCircle2 } from 'lucide-react'
 import { analyzeCrop } from '../services/cropAnalysis'
+import { useFarmSimulation } from '../simulation/SimulationContext'
 
 export default function ScanScreen({ onAnalyze }) {
+  const { farmState } = useFarmSimulation()
   const [loading, setLoading] = useState(false)
   const [rejection, setRejection] = useState(null)
   const [selectedPreview, setSelectedPreview] = useState(null)
@@ -24,12 +26,12 @@ export default function ScanScreen({ onAnalyze }) {
     setLoading(true)
 
     try {
-      // Pass the actual file plus environmental contextual data
+      // Pass the actual file plus environmental contextual data from simulation
       const result = await analyzeCrop(file, {
-        soilMoisture: 32,
-        temperature: 28,
-        humidity: 86,
-        rainProbability: 78
+        soilMoisture: farmState.sensors.soil_moisture,
+        temperature: farmState.sensors.temperature,
+        humidity: farmState.sensors.humidity,
+        rainProbability: farmState.weather.rain_probability
       })
 
       if (result.is_valid_crop === false) {

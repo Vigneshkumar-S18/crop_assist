@@ -359,7 +359,7 @@ def generate_agricultural_response(
                 f"**🧠 Agronomic Multi-Factor Logic:**\n"
                 f"Soil moisture is in the alert zone with no rain forecast. Active transpiration under {temp}°C demands root zone hydration to prevent flower abortion and blossom drop.\n\n"
                 f"💡 **Action Plan:** Run precision drip irrigation for 35–45 minutes to restore root zone moisture to ~65%–75%.\n"
-                f"**Motor Status:** ▶️ ON (Automatic Irrigation Enabled)"
+                f"**Motor Status:** ▶️ ON (Irrigation Active)"
             )
         elif moisture < 60:
             reply = (

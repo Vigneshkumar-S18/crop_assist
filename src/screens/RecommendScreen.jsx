@@ -1,184 +1,348 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   ArrowLeft, Share2, ChevronRight, CheckCircle2, Droplets,
-  Thermometer, CloudRain
+  Thermometer, CloudRain, Sparkles, AlertTriangle, ShieldCheck,
+  ShieldAlert, Leaf, Beaker, Zap, Clock
 } from 'lucide-react'
+import { useFarmSimulation } from '../simulation/SimulationContext'
+import DemoModeBadge from '../components/DemoModeBadge'
+import FertilizerGraphic from '../components/FertilizerGraphic'
 
 export default function RecommendScreen({ onBack, onNavigateToChat }) {
-  const [selectedNutrient, setSelectedNutrient] = useState('K') // 'N' | 'P' | 'K' (default to K as requested)
-  const [activeTab, setActiveTab] = useState('Overview')
-  const [isManualEntry, setIsManualEntry] = useState(false)
+  const { farmState, mode } = useFarmSimulation();
+  
+  // Track default nutrient / recommendation tab based on active farm state
+  const getDefaultNutrient = (currentMode) => {
+    if (currentMode === 'DRY') return 'N';
+    if (currentMode === 'WET') return 'PROTECT';
+    return 'BALANCED';
+  };
 
-  // Live telemetry readings
-  const [telemetry, setTelemetry] = useState({
-    n: 32,
-    p: 24,
-    k: 36,
-    moisture: 28,
-    temp: 31,
-    rain: 82
-  })
+  const [selectedTopic, setSelectedTopic] = useState(getDefaultNutrient(mode));
+  const [activeTab, setActiveTab] = useState('Overview');
+  const [isManualEntry, setIsManualEntry] = useState(false);
 
-  // Comprehensive Deficiency & Prescription Knowledge Base
-  const deficiencyData = {
-    K: {
-      key: 'K',
-      title: 'Potassium Deficiency',
-      subtitle: 'Fertilizer & Natural Solutions',
-      severity: 'Suboptimal',
-      badgeClass: 'danger',
-      iconBg: '#f59e0b',
-      summary: (
-        <>
-          Your soil potassium level is <strong>suboptimal ({telemetry.k} mg/kg)</strong> for the tomato fruiting stage,
-          which restricts fruit sizing, brix sugar accumulation, and causes marginal leaf scorching.
-        </>
-      ),
-      fertilizer: {
-        name: 'Potassium Nitrate (13:0:45)',
-        image: '/assets/potassium_nitrate_bag.svg',
-        desc: 'A high-grade water-soluble potassium fertilizer for rapid fruit expansion & firmness.',
-        rateMain: '4.5 – 5.0 g per Litre of irrigation water',
-        rateSub: 'Apply via drip fertigation early morning (06:00 – 08:30 AM)',
-        reasons: [
-          'High potassium content (45% K₂O)',
-          'Boosts tomato fruit size, brix sugar, and skin thickness',
-          'Free of chlorides (prevents salinity stress & scorch)',
-          'Readily absorbed via micro-irrigation fertigation'
+  // Auto-sync active topic whenever the farm state changes (e.g. DRY or WET clicked on Phone 2)
+  useEffect(() => {
+    setSelectedTopic(getDefaultNutrient(mode));
+  }, [mode]);
+
+  // Live telemetry readings derived directly from centralized farm simulation
+  const telemetry = {
+    n: farmState.sensors.nitrogen,
+    p: farmState.sensors.phosphorus,
+    k: farmState.sensors.potassium,
+    moisture: farmState.sensors.soil_moisture,
+    temp: farmState.sensors.temperature,
+    rain: farmState.weather.rain_probability
+  };
+
+  // Comprehensive state-driven recommendation knowledge engine
+  const getRecommendationData = () => {
+    // -------------------------------------------------------------
+    // TOPIC / STATE: PHOSPHORUS (P) DEFICIT
+    // -------------------------------------------------------------
+    if (selectedTopic === 'P') {
+      return {
+        key: 'P',
+        title: 'Phosphorus Boost & Root Development',
+        subtitle: 'Flowering & Cluster Initiation Protocol',
+        severity: telemetry.p < 30 ? 'Moderate Deficit' : 'Optimal (Target Zone)',
+        badgeClass: telemetry.p < 30 ? 'warning' : 'success',
+        iconBg: '#d97706',
+        summary: (
+          <>
+            Phosphorus level is at <strong>{telemetry.p} mg/kg</strong> (optimal target 45–55 mg/kg).
+            Adequate phosphorus is vital for ATP energy transfer, flower bud initiation, and robust root branching.
+          </>
+        ),
+        fertilizer: {
+          name: 'Single Super Phosphate (SSP 16% P₂O₅ + 11% S)',
+          image: 'ssp',
+          desc: 'High-solubility granular phosphate fortified with active sulfur for root vigor and early bloom.',
+          rateMain: '40 – 50 kg per acre side-banded or 3.0 g/plant',
+          rateSub: 'Incorporate into top 5 cm root zone soil during active flowering',
+          reasons: [
+            'Directly fuels floral cluster initiation and prevents premature bud abortion',
+            '11% elemental sulfur enhances nutrient uptake and balances root zone pH',
+            'Strengthens fine feeder roots against soil compaction'
+          ]
+        },
+        organic: {
+          name: 'Phosphate Rich Organic Manure (PROM) + Bone Meal Powder',
+          image: 'compost',
+          points: [
+            'Fermented rock phosphate with organic matter provides slow, continuous phosphorus release',
+            'Improves soil biological activity without chemical fixation',
+            'Apply 250 g per plant around drip zone perimeter'
+          ],
+          otherOptions: 'Steamed bone meal (50 kg/acre), Vesicular Arbuscular Mycorrhizae (VAM 5 kg/acre)'
+        },
+        tips: [
+          'Band phosphorus close to active root zones as phosphorus has low mobility in soil.',
+          'Maintain soil pH between 6.2 and 6.8 to maximize phosphorus availability.',
+          'Re-test soil phosphorus telemetry in 14 days to monitor uptake.'
         ]
-      },
-      organic: {
-        name: 'Wood Ash Extract + Fermented Banana Peel + FYM',
-        image: '/assets/banana_woodash_extract.svg',
-        points: [
-          'Rich in bio-available organic potassium',
-          'Enhances fruit ripening and sweetness naturally',
-          'Drench 200 ml diluted extract per plant weekly'
-        ],
-        otherOptions: 'Vermicompost, Kelp / Seaweed extract, Neem cake'
-      },
-      tips: [
-        'Maintain soil moisture (45–55%) to facilitate potassium ion mobility.',
-        'Postpone foliar sprays when rain forecast is high (82%) to prevent wash-off.',
-        'Combine with calcium nitrate to prevent Blossom End Rot in expanding fruits.',
-        'Recheck soil potassium level via IoT sensor after 4–5 days of application.',
-        'Monitor fruit firmness and leaf margins for greening and recovery.'
-      ]
-    },
-    N: {
-      key: 'N',
-      title: 'Nitrogen Deficiency',
-      subtitle: 'Fertilizer & Natural Solutions',
-      severity: 'Moderate',
-      badgeClass: 'warning',
-      iconBg: '#f59e0b',
-      summary: (
-        <>
-          Your soil nitrogen level is <strong>low ({telemetry.n} mg/kg)</strong>, which can cause
-          yellowing leaves, slow growth, and reduced fruit yield in tomato.
-        </>
-      ),
-      fertilizer: {
-        name: 'Urea (46% N)',
-        image: '/assets/urea_fertilizer_bag.svg',
-        desc: 'A fast-acting nitrogen fertilizer suitable for tomato crops.',
-        rateMain: '50 – 60 kg per acre',
-        rateSub: 'Apply in split doses (2–3 times during the season)',
-        reasons: [
-          'High nitrogen content (46% N)',
-          'Quickly accessible to plants',
-          'Supports healthy leaf and stem growth',
-          'Widely available and cost-effective'
-        ]
-      },
-      organic: {
-        name: 'Compost / Farmyard Manure (FYM)',
-        image: '/assets/compost_manure.svg',
-        points: [
-          'Improves soil organic matter',
-          'Slow and steady nutrient release',
-          'Use 2–5 tons per acre before planting'
-        ],
-        otherOptions: 'Vermicompost, Green manure (e.g., dhaincha), Neem cake'
-      },
-      tips: [
-        'Maintain soil moisture after application.',
-        'Avoid over-application (can cause excessive vegetative growth).',
-        'Combine with phosphorus and potassium as per crop stage.',
-        'Recheck soil NPK levels after 3–4 weeks.',
-        'Monitor leaf color and growth for improvement.'
-      ]
-    },
-    P: {
-      key: 'P',
-      title: 'Phosphorus Deficiency',
-      subtitle: 'Fertilizer & Natural Solutions',
-      severity: 'Moderate',
-      badgeClass: 'warning',
-      iconBg: '#8b5cf6',
-      summary: (
-        <>
-          Your soil phosphorus level is <strong>low ({telemetry.p} mg/kg)</strong>, which impairs
-          root branching, reduces flower bud set, and causes purplish tint on lower leaf veins.
-        </>
-      ),
-      fertilizer: {
-        name: 'Single Super Phosphate (SSP 16% P₂O₅)',
-        image: '/assets/ssp_phosphorus_bag.svg',
-        desc: 'Essential phosphorus & sulphur fertilizer for root branching and prolific bloom.',
-        rateMain: '75 – 100 kg per acre',
-        rateSub: 'Apply in basal placement near root zone',
-        reasons: [
-          'High available phosphorus (16% P₂O₅)',
-          'Supplies 11% Sulphur and 19% Calcium',
-          'Stimulates profuse flower bud formation',
-          'Improves plant drought and cold resilience'
-        ]
-      },
-      organic: {
-        name: 'Phosphate Rich Organic Manure (PROM) / Bone Meal',
-        image: '/assets/prom_organic_manure.svg',
-        points: [
-          'High organic phosphorus bioavailability',
-          'Safe for beneficial mycorrhizal soil fungi',
-          'Apply 100–150 kg per acre in planting beds'
-        ],
-        otherOptions: 'PSB (Phosphorus Solubilizing Biofertilizer), VAM, Rock Phosphate'
-      },
-      tips: [
-        'Place phosphorus deep in root zone as phosphorus has low soil mobility.',
-        'Ensure soil pH stays between 6.0–6.8 for optimal phosphorus absorption.',
-        'Pair with organic mycorrhizae to multiply root uptake efficiency.',
-        'Recheck soil P levels in 3 weeks.',
-        'Monitor new shoot vigor and flower cluster development.'
-      ]
+      };
     }
-  }
 
-  const current = deficiencyData[selectedNutrient] || deficiencyData.K
+    // -------------------------------------------------------------
+    // TOPIC / STATE: POTASSIUM (K) DEFICIT
+    // -------------------------------------------------------------
+    if (selectedTopic === 'K') {
+      return {
+        key: 'K',
+        title: 'Potassium (K) Sizing & Osmotic Defense',
+        subtitle: 'Fruit Expansion & Heat Shield Protocol',
+        severity: telemetry.k < 40 ? 'Critical Deficit' : 'Optimal (Target Zone)',
+        badgeClass: telemetry.k < 40 ? 'danger' : 'success',
+        iconBg: '#ea580c',
+        summary: (
+          <>
+            Potassium is at <strong>{telemetry.k} mg/kg</strong> (optimal target 60–75 mg/kg).
+            Potassium regulates stomatal conductance, prevents blossom-end rot, and drives sugar translocation into developing tomato fruit.
+          </>
+        ),
+        fertilizer: {
+          name: 'Potassium Nitrate (13:0:45) / Sulphate of Potash (SOP 0:0:50)',
+          image: 'potassium',
+          desc: '100% water-soluble chloride-free potassium formulation for rapid cell enlargement and drought tolerance.',
+          rateMain: '3.0 – 4.0 g per Litre of irrigation water via drip',
+          rateSub: 'Apply during early morning irrigation cycle every 4 days during fruit swell',
+          reasons: [
+            'Prevents blossom-end rot, fruit cracking, and uneven ripening (yellow shoulders)',
+            'Regulates leaf stomata to reduce transpirational water loss under heat',
+            'Elevates fruit brix (sweetness) and wall firmness for premium market grade'
+          ]
+        },
+        organic: {
+          name: 'Fermented Banana Peel Extract + Hardwood Ash Solution',
+          image: 'banana',
+          points: [
+            'Rich in organic potassium and micronutrients (silica, magnesium)',
+            'Dilute fermented extract 1:10 with water and drench around root zones',
+            'Mulch with shredded dry banana leaves for extended potassium leaching'
+          ],
+          otherOptions: 'Wood ash (150 kg/acre broadcast), Bio-potash liquid microbial culture (1 L/acre)'
+        },
+        tips: [
+          'Deliver potassium during fruit set to prevent blossom abortion.',
+          'Avoid excess calcium competition by maintaining balanced fertigation intervals.',
+          'Monitor fruit skin luster and firmness 5 days post-application.'
+        ]
+      };
+    }
+
+    // -------------------------------------------------------------
+    // STATE 1: NORMAL (Mid-Stage Flowering & Fruit Setting Baseline)
+    // -------------------------------------------------------------
+    if (mode === 'NORMAL' && (selectedTopic === 'BALANCED' || selectedTopic === 'NORMAL')) {
+      return {
+        key: 'NORMAL',
+        title: 'Balanced Stage Nutrition (Flowering & Fruit Setting)',
+        subtitle: 'Mid-Stage UGA Agronomic Protocol',
+        severity: 'Optimal (Target Zone)',
+        badgeClass: 'success',
+        iconBg: '#16a34a',
+        summary: (
+          <>
+            Soil moisture is at an <strong>optimal 65%</strong> and NPK nutrient levels (<strong>N: {telemetry.n}, P: {telemetry.p}, K: {telemetry.k} mg/kg</strong>)
+            are fully aligned with UGA target benchmarks for the tomato flowering and early fruit-setting stage. No emergency chemical correction is required.
+          </>
+        ),
+        fertilizer: {
+          name: 'Balanced NPK Fertigation (19:19:19 or 13:0:45 Maintenance)',
+          image: 'npk',
+          desc: 'High-purity 100% water-soluble nutrient formulation to sustain continuous flowering and fruit sizing.',
+          rateMain: '2.0 – 2.5 g per Litre of irrigation water',
+          rateSub: 'Apply via drip fertigation once every 4–5 days during morning cycle',
+          reasons: [
+            'Provides equal 1:1:1 NPK balance to support both root vigor and flower set',
+            'Completely chloride-free and sodium-free to prevent root zone salinity',
+            'Prevents early flower drop and supports uniform cluster development',
+            'Maintains electrical conductivity (EC) safely at 1.4 dS/m'
+          ]
+        },
+        organic: {
+          name: 'Enriched Compost Tea + Cold-Pressed Humic Acid (12%)',
+          image: 'compost',
+          points: [
+            'Supplies organic carbon and unlocks bound micronutrients in the root zone',
+            'Stimulates beneficial rhizosphere mycorrhizal fungi',
+            'Drench 2.5 Liters humic extract per acre with regular watering'
+          ],
+          otherOptions: 'Vermicompost (2 t/ha), Seaweed extract, Neem cake'
+        },
+        tips: [
+          'Maintain steady soil moisture between 65% – 80% to ensure continuous nutrient uptake.',
+          'Avoid heavy single doses of nitrogen that can trigger excessive vegetative runaway over flowering.',
+          'Check drip emitters weekly for uniform flow rate and pressure.',
+          'Monitor flower clusters for successful pollination and fruit setting.',
+          'Re-test IoT telemetry every 24 hours to confirm values remain in the optimal band.'
+        ]
+      };
+    }
+
+    // -------------------------------------------------------------
+    // STATE 2: DRY (Low Moisture 32%, Heat 34°C, Critical Low N & K)
+    // -------------------------------------------------------------
+    if (mode === 'DRY' || selectedTopic === 'N' || selectedTopic === 'DRY') {
+      return {
+        key: 'DRY',
+        title: 'Critical Moisture & Nitrogen Deficiency',
+        subtitle: 'Urgent Rehydration & Drip Fertigation Protocol',
+        severity: 'Critical Deficit',
+        badgeClass: 'danger',
+        iconBg: '#dc2626',
+        summary: (
+          <>
+            Soil moisture has dropped to a <strong>critical deficit (32%)</strong> under <strong>34°C ambient heat</strong> with
+            severe depletion of Nitrogen (<strong>{telemetry.n} mg/kg</strong>) and Potassium (<strong>{telemetry.k} mg/kg</strong>).
+            Active plant transpiration demands immediate rehydration and rapid-acting fertigation to prevent flower drop and chlorosis.
+          </>
+        ),
+        fertilizer: {
+          name: 'Fast-Acting Urea (46-0-0) + Potassium Nitrate (13:0:45)',
+          image: 'urea',
+          desc: 'Rapid bioavailable nitrogen and potassium for instant chlorophyll recovery and fruit retention.',
+          rateMain: '25 – 30 kg Urea per acre (or 4.0 g/plant) via drip',
+          rateSub: 'Combine with 5.0 g Potassium Nitrate/L water in 35-minute precision drip cycle',
+          reasons: [
+            'Rapidly restores leaf chlorophyll synthesis and halts lower leaf yellowing within 3–5 days',
+            'Potassium replenishment prevents heat-induced flower abortion and fruit cracking',
+            'Root-targeted drip fertigation delivers nutrients directly without foliage evaporative loss',
+            'Relieves thermal stress on the tomato vascular xylem stream'
+          ]
+        },
+        organic: {
+          name: '2-Inch Paddy Straw Mulching + Fermented Banana Peel & Wood Ash Extract',
+          image: 'banana',
+          points: [
+            'Straw mulch reduces soil evaporation by 60% and moderates root temperature by 4°C',
+            'Fermented banana peel and wood ash provide rich bioavailable organic potassium',
+            'Drench 250 ml diluted extract per plant directly at the drip perimeter'
+          ],
+          otherOptions: 'Neem cake (100 kg/acre), Well-cured FYM (4 t/acre), Humic acid drench'
+        },
+        tips: [
+          'Hydrate root zone to >60% moisture via drip before applying concentrated fertilizer to prevent root scorch.',
+          'Deliver irrigation during early morning (06:00 – 08:30 AM) to maximize transpirational efficiency.',
+          'Deploy 30–35% overhead green shade nets during peak 11:00 AM – 3:30 PM heat hours.',
+          'Recheck IoT moisture telemetry 2 hours post-cycle to confirm target 65%–75% is reached.',
+          'Monitor newly emerging leaves for greening within 72 hours.'
+        ]
+      };
+    }
+
+    // -------------------------------------------------------------
+    // STATE 3: WET (High Moisture 76%, Rain 78%, Fungal Spore Alert)
+    // -------------------------------------------------------------
+    if (mode === 'WET' || selectedTopic === 'PROTECT' || selectedTopic === 'WET') {
+      return {
+        key: 'WET',
+        title: 'Rain Delay & Fungal Spore Prevention',
+        subtitle: 'Disease Shield & Rain Suppression Protocol',
+        severity: 'Watch (Rain Delay Active)',
+        badgeClass: 'warning',
+        iconBg: '#0284c7',
+        summary: (
+          <>
+            Soil moisture is saturated at <strong>76%</strong> with <strong>78% rainfall probability (8.5 mm)</strong> and <strong>84% relative humidity</strong>.
+            Do <strong>NOT</strong> apply soil fertilizers or run irrigation pumps now—excessive water will leach nitrates and cause root hypoxia.
+            Prioritize preventative disease defense against Early Blight spores.
+          </>
+        ),
+        fertilizer: {
+          name: 'Preventative Copper Oxychloride (50% WP) / Mancozeb (75% WP)',
+          image: 'copper',
+          desc: 'Broad-spectrum contact protective foliar barrier against rain-splashed fungal spores.',
+          rateMain: '2.5 g per Litre of water foliar mist',
+          rateSub: 'Apply as a fine spray covering upper and lower leaf surfaces before heavy rain',
+          reasons: [
+            'Forms a protective chemical barrier that prevents Alternaria and Phytophthora spore penetration',
+            'Rain suppression holds motor OFF to avoid root saturation and disease spread',
+            'Zero nitrate runoff into field waterways during storm precipitation',
+            'Maintains leaf canopy protection during prolonged 84% atmospheric humidity'
+          ]
+        },
+        organic: {
+          name: 'Trichoderma harzianum Bio-Fungicide + Cold-Pressed Neem Oil (10,000 ppm)',
+          image: 'trichoderma',
+          points: [
+            'Beneficial fungus Trichoderma actively parasitizes and consumes pathogenic fungal spores',
+            'Neem oil strengthens plant cuticular wax against moisture invasion',
+            'Spray 5 g Trichoderma + 5 ml Neem Oil per Litre water emulsified with organic soap'
+          ],
+          otherOptions: 'Pseudomonas fluorescens (5 g/L), Panchagavya foliar spray (3%)'
+        },
+        tips: [
+          'Keep irrigation pump in Standby / Suppressed mode during rainfall.',
+          'Clear field drainage furrows to ensure excess surface water drains away from stem collars.',
+          'Prune lower 15 cm leaves touching wet soil to eliminate splash transmission of pathogens.',
+          'Postpone all solid/granule fertilizer broadcasting until rainfall event concludes.',
+          'Re-scan foliage with AgriSense AI Scanner 48 hours post-rainfall to verify zero lesion spread.'
+        ]
+      };
+    }
+
+    // Default Fallback
+    return {
+      key: 'DEFAULT',
+      title: 'Balanced Nutrition & Soil Management',
+      subtitle: 'Standard Tomato Flowering Protocol',
+      severity: 'Standard Mode',
+      badgeClass: 'success',
+      iconBg: '#16a34a',
+      summary: <>Maintain balanced irrigation and stage-appropriate nutrient monitoring.</>,
+      fertilizer: {
+        name: 'Balanced NPK (19:19:19)',
+        image: 'npk',
+        desc: 'Balanced soluble fertilizer.',
+        rateMain: '2.5 g / Litre',
+        rateSub: 'Apply via drip',
+        reasons: ['Balanced nutrition for tomato crops']
+      },
+      organic: {
+        name: 'Farmyard Manure (FYM)',
+        image: 'compost',
+        points: ['Improves soil health'],
+        otherOptions: 'Compost'
+      },
+      tips: ['Maintain soil moisture.']
+    };
+  };
+
+  const current = getRecommendationData();
 
   const handleShare = () => {
     if (navigator.share) {
       navigator.share({
         title: `AgriSense - ${current.title}`,
-        text: `AgriSense Recommendation for Tomato:\n• ${current.title} (${current.severity})\n• Recommended: ${current.fertilizer.name}\n• Organic: ${current.organic.name}`
-      }).catch(() => {})
+        text: `AgriSense Recommendation for Tomato (${mode} State):\n• ${current.title} (${current.severity})\n• Recommended: ${current.fertilizer.name}\n• Organic: ${current.organic.name}`
+      }).catch(() => {});
     } else {
       navigator.clipboard?.writeText(
-        `AgriSense Recommendation - ${current.title}\n• Recommended: ${current.fertilizer.name}\n• Organic: ${current.organic.name}`
-      )
-      alert('Prescription copied to clipboard!')
+        `AgriSense Recommendation (${mode} State) - ${current.title}\n• Recommended: ${current.fertilizer.name}\n• Organic: ${current.organic.name}`
+      );
+      alert('Prescription copied to clipboard!');
     }
-  }
+  };
 
   return (
     <div className="recommend-view-wrapper">
       {/* 1. TOP HEADER */}
-      <div className="recommend-top-bar">
-        <button className="top-icon-btn" onClick={onBack} aria-label="Go Back">
-          <ArrowLeft size={22} color="#111827" />
-        </button>
-        <h1 className="top-title">Recommendation</h1>
+      <div className="recommend-top-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#fff', borderBottom: '1px solid #e5e7eb' }}>
+        {onBack ? (
+          <button className="top-icon-btn" onClick={onBack} aria-label="Go Back">
+            <ArrowLeft size={22} color="#111827" />
+          </button>
+        ) : <div style={{ width: 32 }} />}
+        
+        <div style={{ textAlign: 'center' }}>
+          <h1 className="top-title" style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Agronomic Recommendation</h1>
+          <DemoModeBadge />
+        </div>
+
         <button className="top-icon-btn" onClick={handleShare} aria-label="Share">
           <Share2 size={20} color="#111827" />
         </button>
@@ -190,7 +354,7 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
         {/* LIVE TELEMETRY & NPK SELECTOR CARD */}
         <div className="live-telemetry-panel">
           <div className="telemetry-header-row">
-            <h3 className="telemetry-panel-title">Live Field &amp; Nutrient Readings</h3>
+            <h3 className="telemetry-panel-title">Live Field Telemetry &amp; Nutrients</h3>
             <div className="source-toggle-group">
               <button
                 className={`src-toggle-btn ${!isManualEntry ? 'active' : ''}`}
@@ -212,8 +376,8 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
             
             {/* Nitrogen Card */}
             <div
-              className={`npk-card-item n ${selectedNutrient === 'N' ? 'selected' : ''}`}
-              onClick={() => setSelectedNutrient('N')}
+              className={`npk-card-item n ${selectedTopic === 'N' || (mode === 'DRY' && selectedTopic === 'DRY') ? 'selected' : ''}`}
+              onClick={() => setSelectedTopic('N')}
             >
               <div className="npk-avatar n">N</div>
               {isManualEntry ? (
@@ -229,13 +393,15 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
                   <strong>{telemetry.n}</strong> <span className="unit">mg/kg</span>
                 </div>
               )}
-              <div className="npk-pill-tag warning">Low N</div>
+              <div className={`npk-pill-tag ${telemetry.n < 30 ? 'danger' : 'optimal'}`}>
+                {telemetry.n < 30 ? '🔴 Low N' : '🟢 Optimal N'}
+              </div>
             </div>
 
             {/* Phosphorus Card */}
             <div
-              className={`npk-card-item p ${selectedNutrient === 'P' ? 'selected' : ''}`}
-              onClick={() => setSelectedNutrient('P')}
+              className={`npk-card-item p ${selectedTopic === 'P' ? 'selected' : ''}`}
+              onClick={() => setSelectedTopic('P')}
             >
               <div className="npk-avatar p">P</div>
               {isManualEntry ? (
@@ -251,13 +417,15 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
                   <strong>{telemetry.p}</strong> <span className="unit">mg/kg</span>
                 </div>
               )}
-              <div className="npk-pill-tag warning">Low P</div>
+              <div className={`npk-pill-tag ${telemetry.p < 30 ? 'warning' : 'optimal'}`}>
+                {telemetry.p < 30 ? '🟡 Watch P' : '🟢 Optimal P'}
+              </div>
             </div>
 
             {/* Potassium Card */}
             <div
-              className={`npk-card-item k ${selectedNutrient === 'K' ? 'selected' : ''}`}
-              onClick={() => setSelectedNutrient('K')}
+              className={`npk-card-item k ${selectedTopic === 'K' ? 'selected' : ''}`}
+              onClick={() => setSelectedTopic('K')}
             >
               <div className="npk-avatar k">K</div>
               {isManualEntry ? (
@@ -273,7 +441,9 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
                   <strong>{telemetry.k}</strong> <span className="unit">mg/kg</span>
                 </div>
               )}
-              <div className="npk-pill-tag danger">Suboptimal K</div>
+              <div className={`npk-pill-tag ${telemetry.k < 40 ? 'danger' : 'optimal'}`}>
+                {telemetry.k < 40 ? '🔴 Low K' : '🟢 Optimal K'}
+              </div>
             </div>
 
           </div>
@@ -281,26 +451,30 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           {/* Environmental Telemetry Bottom Chips */}
           <div className="telemetry-env-chips-row">
             <span className="telemetry-chip">
-              <Droplets size={13} color="#3b82f6" /> Moisture: <strong>{telemetry.moisture}%</strong>
+              <Droplets size={13} color={telemetry.moisture < 40 ? '#ef4444' : '#3b82f6'} />
+              Moisture: <strong style={{ color: telemetry.moisture < 40 ? '#dc2626' : '#166534' }}>{telemetry.moisture}%</strong>
             </span>
             <span className="telemetry-chip">
-              <Thermometer size={13} color="#ea580c" /> Temp: <strong>{telemetry.temp}°C</strong>
+              <Thermometer size={13} color={telemetry.temp > 30 ? '#ea580c' : '#16a34a'} />
+              Temp: <strong>{telemetry.temp}°C</strong>
             </span>
             <span className="telemetry-chip">
-              <CloudRain size={13} color="#0284c7" /> Rain (6h): <strong>{telemetry.rain}%</strong>
+              <CloudRain size={13} color="#0284c7" />
+              Rain (6h): <strong style={{ color: telemetry.rain > 50 ? '#0284c7' : '#475569' }}>{telemetry.rain}%</strong>
             </span>
           </div>
         </div>
 
-        {/* 2. DYNAMIC DEFICIENCY HERO BANNER (Updates based on selected nutrient) */}
-        <div className="deficiency-banner-card animate-fade">
+        {/* 2. DYNAMIC STATE DEFICIENCY / MAINTENANCE HERO BANNER */}
+        <div className="deficiency-banner-card animate-fade" key={current.key}>
           <div className="deficiency-icon-box" style={{ background: current.iconBg }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 20h10" />
-              <path d="M10 20c0-5 2-7 2-12" />
-              <path d="M12 8c2-3 6-4 8-4-1 4-3 7-8 7" />
-              <path d="M12 11c-2-3-6-4-8-4 1 4 3 7 8 7" />
-            </svg>
+            {mode === 'WET' ? (
+              <CloudRain size={22} color="#ffffff" />
+            ) : mode === 'DRY' ? (
+              <Thermometer size={22} color="#ffffff" />
+            ) : (
+              <Leaf size={22} color="#ffffff" />
+            )}
           </div>
           <div className="deficiency-meta">
             <h2 className="deficiency-title">{current.title}</h2>
@@ -316,9 +490,9 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           </div>
         </div>
 
-        {/* 3. HORIZONTAL SEGMENTED PILLS */}
+        {/* 3. HORIZONTAL SEGMENTED TABS */}
         <div className="recommend-tabs-row">
-          {['Overview', 'Fertilizer', 'Natural Methods', 'Steps'].map(tab => (
+          {['Overview', 'Fertilizer / Plan', 'Natural Methods', 'Protocol Steps'].map(tab => (
             <button
               key={tab}
               className={`rec-tab-pill ${activeTab === tab ? 'active' : ''}`}
@@ -329,52 +503,40 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           ))}
         </div>
 
-        {/* 4. SECTION 1: PROBLEM SUMMARY */}
+        {/* 4. SECTION 1: PROBLEM / STATE SUMMARY */}
         <div className="rec-section-item">
           <div className="rec-section-heading-row">
-            <div className="rec-heading-icon red-circle">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="6" />
-                <circle cx="12" cy="12" r="2" />
-              </svg>
+            <div className={`rec-heading-icon ${mode === 'DRY' ? 'red-circle' : mode === 'WET' ? 'blue-circle' : 'green-circle'}`}>
+              <Sparkles size={14} color="#ffffff" />
             </div>
-            <h3 className="rec-section-title">1. Problem Summary</h3>
+            <h3 className="rec-section-title">1. Current Farm Condition &amp; Diagnosis</h3>
           </div>
           <p className="rec-summary-paragraph">
             {current.summary}
           </p>
         </div>
 
-        {/* 5. SECTION 2: RECOMMENDED FERTILIZER */}
+        {/* 5. SECTION 2: PRIMARY RECOMMENDED SOLUTION */}
         <div className="rec-section-item">
           <div className="rec-section-heading-row justify-between">
             <div className="flex-align-center">
               <div className="rec-heading-icon green-circle">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" />
-                  <path d="M9 18h6" />
-                  <path d="M10 22h4" />
-                </svg>
+                <CheckCircle2 size={14} color="#ffffff" />
               </div>
-              <h3 className="rec-section-title">2. Recommended Fertilizer</h3>
+              <h3 className="rec-section-title">2. Recommended Primary Action</h3>
             </div>
-            <span className="primary-solution-tag">Primary Solution</span>
+            <span className="primary-solution-tag">
+              {mode === 'WET' ? '🛡️ Preventative Shield' : mode === 'DRY' ? '⚡ Emergency Drip Action' : '🌿 Maintenance Plan'}
+            </span>
           </div>
 
-          {/* Fertilizer Card */}
-          <div className="rec-card-box animate-fade" key={`chem-${current.key}`}>
+          {/* Fertilizer / Chemical / Prescription Card */}
+          <div className="rec-card-box animate-fade" key={`sol-${current.key}`}>
             <div className="card-top-row">
               <div className="card-img-container">
-                <img
-                  key={current.fertilizer.image}
-                  src={current.fertilizer.image}
-                  alt={current.fertilizer.name}
+                <FertilizerGraphic
+                  type={current.fertilizer.image || current.fertilizer.name}
                   className="fertilizer-bag-image animate-fade"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null
-                    e.currentTarget.src = '/assets/urea_fertilizer_bag.svg'
-                  }}
                 />
               </div>
               <div className="card-top-info">
@@ -385,7 +547,7 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
 
             {/* Inner Box 1: Application Rate */}
             <div className="inner-green-box">
-              <h5 className="inner-box-green-title">Application Rate</h5>
+              <h5 className="inner-box-green-title">Application Rate &amp; Method</h5>
               <div className="rate-row main">
                 <span>• {current.fertilizer.rateMain}</span>
                 <ChevronRight size={16} color="#15803d" />
@@ -397,9 +559,9 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
               )}
             </div>
 
-            {/* Inner Box 2: Why this fertilizer? */}
+            {/* Inner Box 2: Why this solution? */}
             <div className="inner-amber-box">
-              <h5 className="inner-box-amber-title">Why this fertilizer?</h5>
+              <h5 className="inner-box-amber-title">Why this prescription was selected:</h5>
               <ul className="why-check-list">
                 {current.fertilizer.reasons.map((reason, idx) => (
                   <li key={idx}>
@@ -417,12 +579,9 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           <div className="rec-section-heading-row justify-between">
             <div className="flex-align-center">
               <div className="rec-heading-icon darkgreen-circle">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
-                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />
-                </svg>
+                <Leaf size={14} color="#ffffff" />
               </div>
-              <h3 className="rec-section-title">3. Natural / Organic Alternatives</h3>
+              <h3 className="rec-section-title">3. Natural &amp; Organic Sustainable Alternative</h3>
             </div>
             <span className="eco-friendly-tag">Eco-Friendly Option</span>
           </div>
@@ -431,15 +590,9 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           <div className="rec-card-box animate-fade" key={`org-${current.key}`}>
             <div className="card-top-row organic">
               <div className="compost-img-container">
-                <img
-                  key={current.organic.image}
-                  src={current.organic.image}
-                  alt={current.organic.name}
+                <FertilizerGraphic
+                  type={current.organic.image || current.organic.name}
                   className="compost-image animate-fade"
-                  onError={(e) => {
-                    e.currentTarget.onerror = null
-                    e.currentTarget.src = '/assets/compost_manure.svg'
-                  }}
                 />
               </div>
               <div className="card-top-info">
@@ -453,25 +606,20 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
             </div>
 
             <div className="other-options-text">
-              <strong>Other options:</strong> {current.organic.otherOptions}
+              <strong>Additional low-cost options:</strong> {current.organic.otherOptions}
             </div>
           </div>
         </div>
 
-        {/* 7. SECTION 4: ADDITIONAL TIPS */}
+        {/* 7. SECTION 4: ACTIONABLE TIPS */}
         <div className="rec-section-item">
           <div className="rec-section-heading-row">
             <div className="rec-heading-icon blue-circle">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-0.5-5Z" />
-                <path d="M6 6h10" />
-                <path d="M6 10h10" />
-              </svg>
+              <Clock size={14} color="#ffffff" />
             </div>
-            <h3 className="rec-section-title">4. Additional Tips</h3>
+            <h3 className="rec-section-title">4. Agronomic Best Practices &amp; Next Steps</h3>
           </div>
 
-          {/* Blue Tips Box */}
           <div className="additional-tips-box">
             <ol className="tips-ordered-list">
               {current.tips.map((tip, idx) => (
@@ -484,7 +632,35 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
           </div>
         </div>
 
-        <div style={{ height: 28 }}></div>
+        {/* Consult AgriSense Chat Assistant Button */}
+        {onNavigateToChat && (
+          <div style={{ marginTop: 8, padding: '0 4px' }}>
+            <button
+              onClick={() => onNavigateToChat(`I am viewing the ${mode} farm state recommendation for ${current.title}. Please provide step-by-step guidance on how to apply ${current.fertilizer.name}.`)}
+              style={{
+                width: '100%',
+                padding: '14px 18px',
+                borderRadius: 14,
+                border: 'none',
+                background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
+                color: '#ffffff',
+                fontSize: 14,
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(22, 163, 74, 0.25)'
+              }}
+            >
+              <Sparkles size={16} />
+              <span>Ask AgriSense Copilot About This Prescription</span>
+            </button>
+          </div>
+        )}
+
+        <div style={{ height: 32 }}></div>
       </div>
     </div>
   )

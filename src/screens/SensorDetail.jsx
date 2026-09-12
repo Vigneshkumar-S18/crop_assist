@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState } from 'react'
 import { ArrowLeft, Lightbulb } from 'lucide-react'
 import {
   Chart as ChartJS,
@@ -10,6 +10,9 @@ import {
   Tooltip
 } from 'chart.js'
 import { Line } from 'react-chartjs-2'
+import { useFarmSimulation } from '../simulation/SimulationContext'
+import { buildSensorList } from './HomeScreen'
+import DemoModeBadge from '../components/DemoModeBadge'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip)
 
@@ -21,25 +24,31 @@ const timeLabels = {
 
 export default function SensorDetail({ sensor, onBack }) {
   const [activeRange, setActiveRange] = useState('1D')
-  const Icon = sensor.icon
+  const { farmState } = useFarmSimulation()
+
+  // Dynamically resolve the live sensor object from the centralized simulation state
+  const liveSensorList = buildSensorList(farmState.sensors)
+  const currentSensor = liveSensorList.find(s => s.id === sensor?.id) || sensor
+  const Icon = currentSensor.icon
 
   // Generate data for different time ranges
   const getChartData = () => {
     const labels = timeLabels[activeRange]
     let data
     if (activeRange === '1D') {
-      // Sample 9 points from 24-hour data
-      const step = Math.floor(sensor.chartData.length / 9)
-      data = labels.map((_, i) => sensor.chartData[Math.min(i * step, sensor.chartData.length - 1)])
+      // Sample 9 points from 24-point time series data
+      const chartArr = currentSensor.chartData || [65, 65, 65, 65, 65, 65, 65, 65, 65]
+      const step = Math.max(1, Math.floor(chartArr.length / 9))
+      data = labels.map((_, i) => chartArr[Math.min(i * step, chartArr.length - 1)])
     } else if (activeRange === '1W') {
       data = labels.map((_, i) => {
-        const base = sensor.numValue
-        return +(base + (Math.random() - 0.5) * base * 0.3).toFixed(1)
+        const base = currentSensor.numValue || 50
+        return +(base + (Math.sin(i) * 0.15 * base)).toFixed(1)
       })
     } else {
       data = labels.map((_, i) => {
-        const base = sensor.numValue
-        return +(base + (Math.random() - 0.5) * base * 0.2).toFixed(1)
+        const base = currentSensor.numValue || 50
+        return +(base + (Math.cos(i) * 0.1 * base)).toFixed(1)
       })
     }
     return {
@@ -72,7 +81,7 @@ export default function SensorDetail({ sensor, onBack }) {
         cornerRadius: 8,
         displayColors: false,
         callbacks: {
-          label: (ctx) => `${ctx.parsed.y}${sensor.unit}`
+          label: (ctx) => `${ctx.parsed.y}${currentSensor.unit || ''}`
         }
       }
     },
@@ -101,35 +110,35 @@ export default function SensorDetail({ sensor, onBack }) {
   return (
     <div>
       {/* Header */}
-      <div className="screen-header">
-        <button className="back-btn" onClick={onBack}>
+      <div className="screen-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px' }}>
+        <button className="back-btn" onClick={onBack} aria-label="Back">
           <ArrowLeft />
         </button>
-        <h1>{sensor.name}</h1>
-        <div style={{ width: 30 }}></div>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{currentSensor.name}</h1>
+        <DemoModeBadge />
       </div>
 
       <div className="sensor-detail">
         {/* Current Value Hero */}
         <div className="sensor-detail-hero animate-in">
-          <div className={`detail-icon sensor-icon ${sensor.iconClass}`}>
+          <div className={`detail-icon sensor-icon ${currentSensor.iconClass}`}>
             <Icon />
           </div>
-          <p className="current-label">Current {sensor.name.split(' ').pop()}</p>
-          <p className="current-value">{sensor.value}</p>
+          <p className="current-label">Current {currentSensor.name.split(' ').pop()}</p>
+          <p className="current-value">{currentSensor.value}</p>
           <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 6 }}>
-            <span className={`sensor-status ${sensor.statusClass}`}>
-              {sensor.status}
+            <span className={`sensor-status ${currentSensor.statusClass}`}>
+              {currentSensor.status}
             </span>
-            {sensor.tier && (
+            {currentSensor.tier && (
               <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: '#f3f4f6', color: '#374151' }}>
-                {sensor.tier}
+                {currentSensor.tier}
               </span>
             )}
           </div>
-          {sensor.target && (
+          {currentSensor.target && (
             <span style={{ fontSize: 11.5, color: '#166534', fontWeight: 600, marginTop: 4 }}>
-              🎯 Target Benchmark: {sensor.target}
+              🎯 Target Benchmark: {currentSensor.target}
             </span>
           )}
         </div>
@@ -156,17 +165,17 @@ export default function SensorDetail({ sensor, onBack }) {
         <div className="stats-row animate-in">
           <div className="stat-box">
             <p className="stat-label">Min</p>
-            <p className="stat-value">{sensor.min.value}</p>
-            <p className="stat-time">{sensor.min.time}</p>
+            <p className="stat-value">{currentSensor.min?.value || currentSensor.value}</p>
+            <p className="stat-time">{currentSensor.min?.time || 'Live'}</p>
           </div>
           <div className="stat-box">
             <p className="stat-label">Max</p>
-            <p className="stat-value">{sensor.max.value}</p>
-            <p className="stat-time">{sensor.max.time}</p>
+            <p className="stat-value">{currentSensor.max?.value || currentSensor.value}</p>
+            <p className="stat-time">{currentSensor.max?.time || 'Live'}</p>
           </div>
           <div className="stat-box">
             <p className="stat-label">Average</p>
-            <p className="stat-value">{sensor.avg}</p>
+            <p className="stat-value">{currentSensor.avg || currentSensor.value}</p>
           </div>
         </div>
 
@@ -176,7 +185,7 @@ export default function SensorDetail({ sensor, onBack }) {
             <Lightbulb />
             Agronomic Decision Insights & Thresholds
           </h4>
-          <p>{sensor.insight}</p>
+          <p>{currentSensor.insight}</p>
           
           <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid #e5e7eb', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
             💡 <em>AgriSense Decision Notice: Thresholds are stage-aware guidelines. Always verify values against specific sensor probe calibration and soil type.</em>

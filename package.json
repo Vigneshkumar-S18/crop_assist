@@ -4,7 +4,11 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 3000 --host 0.0.0.0",
+    "dev:farmer": "vite --port 3000 --host 0.0.0.0",
+    "dev:controller": "vite --config vite.controller.config.js",
+    "server": "node server/farmStateServer.js",
+    "dev:all": "node server/devAll.js",
     "build": "vite build",
     "preview": "vite preview"
   },

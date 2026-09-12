@@ -22,6 +22,7 @@ import {
 import { sendChatMessage, transcribeVoiceAudio, synthesizeVoiceSpeech } from '../services/chatService'
 import DecisionPipelineCard from '../components/DecisionPipelineCard'
 import { matchDemoFlow, SUGGESTED_DEMO_QUESTIONS } from '../services/demoFlows'
+import { useFarmSimulation } from '../simulation/SimulationContext'
 
 const SUGGESTED_QUESTIONS = {
   en: SUGGESTED_DEMO_QUESTIONS.en,
@@ -46,6 +47,7 @@ const LANGUAGES = [
 ]
 
 export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
+  const { farmState } = useFarmSimulation()
   const [selectedLang, setSelectedLang] = useState('en')
   const [messages, setMessages] = useState([
     {
@@ -174,7 +176,23 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       const [res] = await Promise.all([
         sendChatMessage(query, {
           language: selectedLang,
-          conversationHistory
+          conversationHistory,
+          sensors: {
+            soil_moisture: farmState.sensors.soil_moisture,
+            temperature: farmState.sensors.temperature,
+            humidity: farmState.sensors.humidity,
+            nitrogen: farmState.sensors.nitrogen,
+            phosphorus: farmState.sensors.phosphorus,
+            potassium: farmState.sensors.potassium,
+            water_quality: farmState.sensors.water_quality_status
+          },
+          weather: {
+            temperature: farmState.weather.temperature,
+            humidity: farmState.weather.humidity,
+            rain_probability_6h: farmState.weather.rain_probability_6h || farmState.weather.rain_probability,
+            rain_probability_24h: farmState.weather.rain_probability_24h || farmState.weather.rain_probability,
+            location: farmState.weather.location
+          }
         }),
         wait(6000)
       ])
@@ -489,15 +507,15 @@ export default function ChatScreen({ initialQuery, onClearInitialQuery }) {
       <div style={{ background: '#fff', padding: '8px 16px', display: 'flex', gap: 12, overflowX: 'auto', borderBottom: '1px solid #f1f5f9' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f0fdf4', padding: '4px 10px', borderRadius: 20, fontSize: 12, color: '#166534', flexShrink: 0 }}>
           <Droplets size={14} color="#16a34a" />
-          <span>Moisture: <strong>28%</strong> (Low)</span>
+          <span>Moisture: <strong>{farmState.sensors.soil_moisture}%</strong> ({farmState.sensors.soil_moisture_status})</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#eff6ff', padding: '4px 10px', borderRadius: 20, fontSize: 12, color: '#1e40af', flexShrink: 0 }}>
           <CloudRain size={14} color="#3b82f6" />
-          <span>Rain (6h): <strong>82%</strong></span>
+          <span>Rain: <strong>{farmState.weather.rain_probability}%</strong></span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff7ed', padding: '4px 10px', borderRadius: 20, fontSize: 12, color: '#9a3412', flexShrink: 0 }}>
           <Thermometer size={14} color="#ea580c" />
-          <span>Temp: <strong>31°C</strong></span>
+          <span>Temp: <strong>{farmState.sensors.temperature}°C</strong></span>
         </div>
       </div>
 

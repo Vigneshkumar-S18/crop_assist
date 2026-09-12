@@ -24,6 +24,7 @@ from api.v1.fertilizer import router as v1_fertilizer_router
 from api.v1.irrigation import router as v1_irrigation_router
 from api.v1.alerts import router as v1_alerts_router
 from api.v1.voice import router as v1_voice_router
+from api.v1.farm_state import router as v1_farm_state_router
 
 class LegacyChatRequest(BaseModel):
     message: str
@@ -71,6 +72,8 @@ app.include_router(v1_fertilizer_router, prefix="/api/v1")
 app.include_router(v1_irrigation_router, prefix="/api/v1")
 app.include_router(v1_alerts_router, prefix="/api/v1")
 app.include_router(v1_voice_router, prefix="/api/v1")
+app.include_router(v1_farm_state_router, prefix="/api/v1")
+app.include_router(v1_farm_state_router, prefix="/api")
 
 # -----------------------------------------------------------------------------
 # ROOT & HEALTH CHECK
