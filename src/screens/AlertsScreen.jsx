@@ -14,7 +14,46 @@ const ICON_MAP = {
   ShieldAlert,
   Thermometer,
   Flame,
-  Beaker
+  Beaker,
+  CheckCircle2,
+  AlertTriangle
+}
+
+function renderAlertIcon(icon, category, size = 18) {
+  if (React.isValidElement(icon)) {
+    return icon;
+  }
+  if (typeof icon === 'function') {
+    const IconComp = icon;
+    return <IconComp size={size} />;
+  }
+  if (typeof icon === 'object' && icon !== null && icon.$$typeof) {
+    const IconComp = icon;
+    return <IconComp size={size} />;
+  }
+  
+  const name = typeof icon === 'string' ? icon.toLowerCase() : '';
+  const cat = typeof category === 'string' ? category.toLowerCase() : '';
+  
+  if (name.includes('drop') || cat.includes('moist') || cat.includes('irrig') || cat.includes('water')) {
+    return <Droplets size={size} />;
+  }
+  if (name.includes('shield') || cat.includes('path') || cat.includes('disease') || cat.includes('spore')) {
+    return <ShieldAlert size={size} />;
+  }
+  if (name.includes('therm') || name.includes('temp') || cat.includes('heat') || cat.includes('temp')) {
+    return <Thermometer size={size} />;
+  }
+  if (name.includes('flame') || cat.includes('salin') || cat.includes('ec')) {
+    return <Flame size={size} />;
+  }
+  if (name.includes('beaker') || cat.includes('chem') || cat.includes('ph')) {
+    return <Beaker size={size} />;
+  }
+  if (name.includes('check') || cat.includes('health') || cat.includes('system') || cat.includes('optimal')) {
+    return <CheckCircle2 size={size} />;
+  }
+  return <Leaf size={size} />;
 }
 
 const alertsData = [
@@ -422,15 +461,15 @@ const alertsData = [
     }
   ]
 
-  export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRecommend }) {
+export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRecommend }) {
     const { farmState } = useFarmSimulation()
     const [selectedAlert, setSelectedAlert] = useState(null)
     const [treatmentStatus, setTreatmentStatus] = useState({}) // { [alertId]: 'applied' | 'verified' | 'resolved' }
     const [isVerifying, setIsVerifying] = useState(false)
     const [toastMessage, setToastMessage] = useState(null)
     
-    // Clean click-to-reveal state in alert detail
-    const [hasRevealedPlan, setHasRevealedPlan] = useState(false)
+    // Default to true so solution is immediately shown when alert is clicked
+    const [hasRevealedPlan, setHasRevealedPlan] = useState(true)
     const [activeSolutionTab, setActiveSolutionTab] = useState('chemical') // 'chemical' | 'organic'
     const [expandedSection, setExpandedSection] = useState(null) // 'why' | 'precautions' | 'protocol' | 'verification'
 
@@ -458,7 +497,7 @@ const alertsData = [
       showToast('✨ Alert marked as Resolved!')
       setTimeout(() => {
         setSelectedAlert(null)
-        setHasRevealedPlan(false)
+        setHasRevealedPlan(true)
       }, 1200)
     }
 
@@ -468,8 +507,19 @@ const alertsData = [
 
     const handleAskAdvisor = (alert) => {
       if (onNavigateToChat) {
-        onNavigateToChat(`I received an alert for ${alert.title}. How should I apply the recommended fertilizer and organic treatment?`)
+        onNavigateToChat(`I received an alert for "${alert.title}". How should I apply the recommended fertilizer and organic treatment?`)
       }
+    }
+
+    const getTopicForAlert = (al) => {
+      const cat = (al.category || '').toLowerCase();
+      const id = (al.id || '').toLowerCase();
+      if (id.includes('n_low') || cat.includes('npk') || cat.includes('nutri')) return 'N';
+      if (id.includes('p_low') || cat.includes('phos')) return 'P';
+      if (id.includes('k_low') || cat.includes('pota')) return 'K';
+      if (id.includes('humidity') || id.includes('disease') || id.includes('spore')) return 'PROTECT';
+      if (id.includes('moisture') || id.includes('dry')) return 'N';
+      return 'BALANCED';
     }
 
     // =========================================================================
@@ -477,21 +527,52 @@ const alertsData = [
     // =========================================================================
     if (selectedAlert) {
       const blueprint = alertsData.find(a => a.id === selectedAlert.id) || {}
+      
+      const safeWhy = Array.isArray(selectedAlert.whyHappened) && selectedAlert.whyHappened.length > 0
+        ? selectedAlert.whyHappened
+        : Array.isArray(blueprint.whyHappened) && blueprint.whyHappened.length > 0
+          ? blueprint.whyHappened
+          : [
+              'Live sensor telemetry detected parameters outside the optimal threshold for tomato flowering.',
+              'Immediate targeted adjustment stabilizes plant health and preserves fruit yield.'
+            ];
+
+      const safePrecautions = Array.isArray(selectedAlert.precautions) && selectedAlert.precautions.length > 0
+        ? selectedAlert.precautions
+        : Array.isArray(blueprint.precautions) && blueprint.precautions.length > 0
+          ? blueprint.precautions
+          : [
+              'Check soil moisture before concentrated fertilizer delivery to prevent root scorch.',
+              'Avoid overhead spraying during peak midday heat.'
+            ];
+
+      const safeActionSteps = Array.isArray(selectedAlert.actionSteps) && selectedAlert.actionSteps.length > 0
+        ? selectedAlert.actionSteps
+        : Array.isArray(blueprint.actionSteps) && blueprint.actionSteps.length > 0
+          ? blueprint.actionSteps
+          : [
+              '1. Review prescribed chemical or organic remediation plan.',
+              '2. Apply treatment via drip line or root perimeter.',
+              '3. Re-test IoT sensor telemetry in 3–5 days.'
+            ];
+
       const alert = {
         ...blueprint,
         ...selectedAlert,
-        currentVal: selectedAlert.currentVal || blueprint.currentVal || 'Deficit detected',
+        category: selectedAlert.category || blueprint.category || 'Agronomic Care',
+        title: selectedAlert.title || blueprint.title || 'Agronomic Recommendation',
+        shortDesc: selectedAlert.shortDesc || blueprint.shortDesc || 'Targeted remediation protocol for current crop condition.',
+        type: selectedAlert.type || blueprint.type || 'warning',
+        severity: selectedAlert.severity || blueprint.severity || 'Moderate',
+        currentVal: selectedAlert.currentVal || blueprint.currentVal || 'Live Deficit detected',
         targetVal: selectedAlert.targetVal || blueprint.targetVal || 'Optimal target band',
         growthStage: selectedAlert.growthStage || blueprint.growthStage || 'Flowering & Fruit Setting',
-        whyHappened: selectedAlert.whyHappened || blueprint.whyHappened || [
-          'Live sensor telemetry detected parameters outside the optimal threshold for tomato flowering.',
-          'Immediate targeted adjustment stabilizes plant health and preserves fruit yield.'
-        ],
+        whyHappened: safeWhy,
         fastSolution: selectedAlert.fastSolution || blueprint.fastSolution || {
           name: 'Targeted Chemical Nutrient / Irrigation Correction',
           grade: 'High-Purity Soluble Formulation',
-          dosage: 'Apply per standard crop stage dosage',
-          method: 'Drip fertigation or root application',
+          dosage: 'Apply per standard crop stage dosage (20-25 kg/acre)',
+          method: 'Drip fertigation directly at root zone',
           whySelected: 'Rapidly replenishes root zone nutrient equilibrium to restore leaf chlorophyll and fruit retention.',
           speed: '2–4 Days',
           confidence: '95%'
@@ -499,125 +580,101 @@ const alertsData = [
         organicSolution: selectedAlert.organicSolution || blueprint.organicSolution || {
           name: 'Enriched Compost Tea + Organic Mulch',
           dosage: '2–4 tons/acre or 250 g/plant',
-          method: 'Soil trenching around drip perimeter',
+          method: 'Soil trenching around drip perimeter followed by light irrigation',
           whySelected: 'Increases soil organic matter and unlocks bound nutrients organically.',
           speed: '7–10 Days',
           confidence: '91%'
         },
-        precautions: selectedAlert.precautions || blueprint.precautions || [
-          'Check soil moisture before concentrated fertilizer delivery to prevent root scorch.',
-          'Avoid overhead spraying during peak midday heat.'
-        ],
-        actionSteps: selectedAlert.actionSteps || blueprint.actionSteps || [
-          '1. Review prescribed chemical or organic remediation plan.',
-          '2. Apply treatment via drip line or root perimeter.',
-          '3. Re-test IoT sensor telemetry in 3–5 days.'
-        ],
+        precautions: safePrecautions,
+        actionSteps: safeActionSteps,
         verification: selectedAlert.verification || blueprint.verification || {
-          metric: selectedAlert.category || 'Target Metric',
+          metric: selectedAlert.category || 'Target Parameter',
           baseline: selectedAlert.currentVal || 'Deficit',
           target: selectedAlert.targetVal || 'Optimal',
           window: '3–5 days'
         }
       }
+      
       const status = treatmentStatus[alert.id]
-      const Icon = alert.icon || ICON_MAP[alert.category] || Leaf
 
-    return (
-      <div className="recommendation-detail-page">
-        {/* Header */}
-        <div className="screen-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: '#fff' }}>
-          <button
-            className="back-btn"
-            onClick={() => { setSelectedAlert(null); setHasRevealedPlan(false); setExpandedSection(null); }}
-            aria-label="Back to Alert List"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--gray-900)' }}>
-              Actionable Alert Advisor
-            </h1>
-            <span style={{ fontSize: 11, color: 'var(--green-600)', fontWeight: 600 }}>
-              AgriSense Recommendation Engine
-            </span>
-          </div>
-          <div style={{ width: 32 }} />
-        </div>
-
-        {/* Toast Notification */}
-        {toastMessage && (
-          <div className="alert-action-toast animate-in">
-            {toastMessage}
-          </div>
-        )}
-
-        <div className="recommendation-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          
-          {/* Problem Header Banner */}
-          <div className={`recommend-problem-banner ${alert.type} animate-in`}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-              <div className={`alert-indicator ${alert.type}`}>
-                <Icon />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="rec-badge-category">{alert.category}</span>
-                  <span className={`rec-badge-severity ${alert.type}`}>{alert.severity} Priority</span>
-                </div>
-                <h3 style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>
-                  {alert.title}
-                </h3>
-              </div>
-            </div>
-
-            <p style={{ fontSize: 12.5, color: 'var(--gray-700)', lineHeight: 1.45, margin: 0 }}>
-              {alert.shortDesc}
-            </p>
-
-            <div className="rec-metrics-row">
-              <div className="rec-metric-box">
-                <span className="label">Current Sensor Reading</span>
-                <span className="val current">{alert.currentVal}</span>
-              </div>
-              <div className="rec-metric-box">
-                <span className="label">Optimal Target Range</span>
-                <span className="val target">{alert.targetVal}</span>
-              </div>
-              <div className="rec-metric-box">
-                <span className="label">Crop Phase</span>
-                <span className="val stage">🍅 Fruiting Stage</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Model Attribution Badge */}
-          <div className="model-tag-bar animate-in" style={{ animationDelay: '0.05s' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Cpu size={14} color="#16a34a" />
-              <span>Candidate ML: <strong>Poshan-fertilizer-recommendation</strong> (94.7% Acc)</span>
-            </div>
-            <span className="deficiency-pill">{alert.severity} Deficit</span>
-          </div>
-
-          {/* PROMINENT RECOMMENDATION TRIGGER BUTTON */}
-          <div className="generate-action-box animate-in" style={{ animationDelay: '0.1s' }}>
+      return (
+        <div className="recommendation-detail-page">
+          {/* Header */}
+          <div className="screen-header" style={{ position: 'sticky', top: 0, zIndex: 30, background: '#fff' }}>
             <button
-              className="btn-generate-rec"
-              onClick={() => setHasRevealedPlan(true)}
+              className="back-btn"
+              onClick={() => { setSelectedAlert(null); setHasRevealedPlan(true); setExpandedSection(null); }}
+              aria-label="Back to Alert List"
             >
-              <Sparkles size={18} />
-              <span>{hasRevealedPlan ? 'Remediation Plan Active' : 'Suggest Fertilizer & Organic Solution'}</span>
+              <ArrowLeft size={20} />
             </button>
-            {!hasRevealedPlan && (
-              <p style={{ margin: '8px 0 0', textAlign: 'center', fontSize: 11, color: 'var(--gray-500)' }}>
-                ⚡ Tap to generate targeted chemical and organic treatments to cure this alert.
-              </p>
-            )}
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--gray-900)' }}>
+                Actionable Alert Advisor
+              </h1>
+              <span style={{ fontSize: 11, color: 'var(--green-600)', fontWeight: 600 }}>
+                AgriSense Recommendation Engine
+              </span>
+            </div>
+            <div style={{ width: 32 }} />
           </div>
 
-          {/* REVEALED RESULTS: DUAL-TRACK SOLUTION (Clean Tab Switcher) */}
-          {hasRevealedPlan && (
+          {/* Toast Notification */}
+          {toastMessage && (
+            <div className="alert-action-toast animate-in">
+              {toastMessage}
+            </div>
+          )}
+
+          <div className="recommendation-body" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            
+            {/* Problem Header Banner */}
+            <div className={`recommend-problem-banner ${alert.type} animate-in`}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <div className={`alert-indicator ${alert.type}`}>
+                  {renderAlertIcon(alert.icon, alert.category, 20)}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="rec-badge-category">{alert.category}</span>
+                    <span className={`rec-badge-severity ${alert.type}`}>{alert.severity} Priority</span>
+                  </div>
+                  <h3 style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>
+                    {alert.title}
+                  </h3>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 12.5, color: 'var(--gray-700)', lineHeight: 1.45, margin: 0 }}>
+                {alert.shortDesc}
+              </p>
+
+              <div className="rec-metrics-row">
+                <div className="rec-metric-box">
+                  <span className="label">Current Sensor Reading</span>
+                  <span className="val current">{alert.currentVal}</span>
+                </div>
+                <div className="rec-metric-box">
+                  <span className="label">Optimal Target Range</span>
+                  <span className="val target">{alert.targetVal}</span>
+                </div>
+                <div className="rec-metric-box">
+                  <span className="label">Crop Phase</span>
+                  <span className="val stage">🍅 Fruiting Stage</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Model Attribution Badge */}
+            <div className="model-tag-bar animate-in" style={{ animationDelay: '0.05s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Cpu size={14} color="#16a34a" />
+                <span>Candidate ML: <strong>Poshan-fertilizer-recommendation</strong> (94.7% Acc)</span>
+              </div>
+              <span className="deficiency-pill">{alert.severity} Deficit</span>
+            </div>
+
+            {/* REVEALED RESULTS: DUAL-TRACK SOLUTION (Clean Tab Switcher) */}
             <div className="recommendation-results-clean animate-in" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               
               {/* TAB SELECTOR */}
@@ -641,24 +698,26 @@ const alertsData = [
                 <div className="solution-card chemical animate-in">
                   <div className="solution-badge chemical">
                     <span>🚀 FAST CHEMICAL CORRECTION</span>
-                    <span className="speed-pill">Response: {alert.fastSolution.speed}</span>
+                    <span className="speed-pill">Response: {alert.fastSolution?.speed || '2-4 Days'}</span>
                   </div>
-                  <h4 className="sol-name">{alert.fastSolution.name}</h4>
-                  <div className="sol-grade">{alert.fastSolution.grade}</div>
+                  <h4 className="sol-name">{alert.fastSolution?.name || 'Targeted Chemical Treatment'}</h4>
+                  {alert.fastSolution?.grade && (
+                    <div className="sol-grade">{alert.fastSolution.grade}</div>
+                  )}
                   
                   <div className="sol-meta-grid">
                     <div>
                       <span className="sol-meta-label">Prescription Dosage:</span>
-                      <p className="sol-meta-val">{alert.fastSolution.dosage}</p>
+                      <p className="sol-meta-val">{alert.fastSolution?.dosage || 'Standard field dosage'}</p>
                     </div>
                     <div>
                       <span className="sol-meta-label">Application Method:</span>
-                      <p className="sol-meta-val">{alert.fastSolution.method}</p>
+                      <p className="sol-meta-val">{alert.fastSolution?.method || 'Drip fertigation'}</p>
                     </div>
                   </div>
 
                   <div className="sol-why-box">
-                    <strong>Why this was selected:</strong> {alert.fastSolution.whySelected}
+                    <strong>Why this was selected:</strong> {alert.fastSolution?.whySelected || 'Rapidly restores bioavailable nutrients.'}
                   </div>
                 </div>
               ) : (
@@ -667,21 +726,21 @@ const alertsData = [
                     <span>🌿 NATURAL / LOW-COST ALTERNATIVE</span>
                     <span className="speed-pill">Sustainable Release</span>
                   </div>
-                  <h4 className="sol-name">{alert.organicSolution.name}</h4>
+                  <h4 className="sol-name">{alert.organicSolution?.name || 'Organic Compost & Bio-Conditioner'}</h4>
 
                   <div className="sol-meta-grid">
                     <div>
                       <span className="sol-meta-label">Organic Dosage:</span>
-                      <p className="sol-meta-val">{alert.organicSolution.dosage}</p>
+                      <p className="sol-meta-val">{alert.organicSolution?.dosage || '2-4 tons/acre'}</p>
                     </div>
                     <div>
                       <span className="sol-meta-label">Application Method:</span>
-                      <p className="sol-meta-val">{alert.organicSolution.method}</p>
+                      <p className="sol-meta-val">{alert.organicSolution?.method || 'Soil trenching around drip perimeter'}</p>
                     </div>
                   </div>
 
                   <div className="sol-why-box organic">
-                    <strong>Soil Health Benefit:</strong> {alert.organicSolution.whySelected}
+                    <strong>Soil Health Benefit:</strong> {alert.organicSolution?.whySelected || 'Improves soil health and nutrient uptake.'}
                   </div>
                 </div>
               )}
@@ -706,7 +765,7 @@ const alertsData = [
                   {expandedSection === 'why' && (
                     <div className="accordion-content animate-in">
                       <ul className="rec-bullet-list">
-                        {alert.whyHappened.map((point, idx) => (
+                        {(alert.whyHappened || []).map((point, idx) => (
                           <li key={idx}>{point}</li>
                         ))}
                       </ul>
@@ -732,7 +791,7 @@ const alertsData = [
                     {expandedSection === 'precautions' && (
                       <div className="accordion-content precaution animate-in">
                         <ul className="rec-bullet-list precaution">
-                          {alert.precautions.map((prec, idx) => (
+                          {(alert.precautions || []).map((prec, idx) => (
                             <li key={idx}>{prec}</li>
                           ))}
                         </ul>
@@ -758,10 +817,10 @@ const alertsData = [
                   {expandedSection === 'protocol' && (
                     <div className="accordion-content animate-in">
                       <div className="action-checklist">
-                        {alert.actionSteps.map((step, idx) => (
+                        {(alert.actionSteps || []).map((step, idx) => (
                           <div key={idx} className="action-check-item">
                             <div className="check-number">{idx + 1}</div>
-                            <p>{step.replace(/^\d+\.\s*/, '')}</p>
+                            <p>{String(step).replace(/^\d+\.\s*/, '')}</p>
                           </div>
                         ))}
                       </div>
@@ -778,7 +837,7 @@ const alertsData = [
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <RefreshCw size={15} color="var(--green-600)" />
                       <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-900)' }}>
-                        Closed-Loop IoT Verification ({alert.verification.window})
+                        Closed-Loop IoT Verification ({alert.verification?.window || '3–5 days'})
                       </span>
                     </div>
                     {expandedSection === 'verification' ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -789,8 +848,8 @@ const alertsData = [
                         AgriSense monitors your field sensors to verify that treatment cures the deficiency.
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', background: '#f0fdf4', padding: '8px 10px', borderRadius: 6, fontSize: 11, color: '#166534', fontWeight: 600 }}>
-                        <span>Target: <strong>{alert.verification.target}</strong></span>
-                        <span>Re-test: <strong>{alert.verification.window}</strong></span>
+                        <span>Target: <strong>{alert.verification?.target || 'Optimal'}</strong></span>
+                        <span>Re-test: <strong>{alert.verification?.window || '3–5 days'}</strong></span>
                       </div>
                     </div>
                   )}
@@ -812,9 +871,10 @@ const alertsData = [
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8
+                      gap: 8,
+                      cursor: 'pointer'
                     }}
-                    onClick={() => onNavigateToRecommend(alert.growthStage || 'Flowering')}
+                    onClick={() => onNavigateToRecommend(getTopicForAlert(alert))}
                   >
                     <Sparkles size={16} color="#ffffff" />
                     Open Complete Fertilizer & Organic Plan
@@ -856,176 +916,184 @@ const alertsData = [
               </div>
 
             </div>
-          )}
 
-          <div style={{ height: 20 }} />
-        </div>
-      </div>
-    )
-  }
-
-
-  // =========================================================================
-  // VIEW 2: Alert List Screen (Default View)
-  // =========================================================================
-  const [stageFilter, setStageFilter] = useState('All')
-  const [showThresholdsGuide, setShowThresholdsGuide] = useState(false)
-
-  // Build active alerts list from simulation state
-  const activeSimAlertIds = (farmState.alerts || []).map(a => a.id)
-  
-  // Enrich simulation alerts with detailed remediation blueprints
-  const enrichedSimAlerts = (farmState.alerts || []).map(simAlert => {
-    const blueprint = alertsData.find(a => a.id === simAlert.id) || {}
-    const IconComp = ICON_MAP[simAlert.icon] || blueprint.icon || Leaf
-    return {
-      ...blueprint,
-      ...simAlert,
-      icon: IconComp,
-      isSimulatedActive: true
-    }
-  })
-
-  // Merge with other standard alerts if not already in sim alerts
-  const otherAlerts = alertsData.filter(a => !activeSimAlertIds.includes(a.id))
-  const allCurrentAlerts = [...enrichedSimAlerts, ...otherAlerts]
-
-  const filteredAlerts = stageFilter === 'All'
-    ? allCurrentAlerts
-    : allCurrentAlerts.filter(a => a.growthStage === stageFilter || a.growthStage === 'All Stages')
-
-  const highPriorityCount = filteredAlerts.filter(a => a.severity === 'High' || a.severity === 'Critical').length
-
-  return (
-    <div>
-      <div className="screen-header">
-        {onBack && (
-          <button
-            className="back-btn"
-            onClick={onBack}
-            aria-label="Back to Home"
-          >
-            <ArrowLeft size={20} />
-          </button>
-        )}
-        <h1 style={{ flex: 1, textAlign: 'center', margin: 0, fontSize: 18, fontWeight: 700 }}>
-          Alerts & Recommendations
-        </h1>
-        <button
-          onClick={() => setShowThresholdsGuide(true)}
-          style={{
-            background: '#f0fdf4',
-            border: '1px solid #bbf7d0',
-            borderRadius: 8,
-            padding: '6px 10px',
-            fontSize: 12,
-            fontWeight: 700,
-            color: '#166534',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}
-          title="View Agronomic Decision Thresholds"
-        >
-          <Sliders size={14} />
-          <span>Thresholds</span>
-        </button>
-      </div>
-
-      <div className="alerts-screen">
-        {/* Stage Filter Selector */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }} className="animate-in">
-          {['All', 'Flowering & Fruit Setting', 'Vegetative', 'Seedling', 'Fruiting'].map(stg => (
-            <button
-              key={stg}
-              onClick={() => setStageFilter(stg)}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 20,
-                border: 'none',
-                fontSize: 11.5,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                cursor: 'pointer',
-                background: stageFilter === stg ? '#16a34a' : '#f3f4f6',
-                color: stageFilter === stg ? '#fff' : '#4b5563',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {stg === 'All' ? '🌱 All Stages' : `🍅 ${stg}`}
-            </button>
-          ))}
-        </div>
-
-        {/* Summary Card */}
-        <div className="alert-summary animate-in" style={{ marginTop: 8 }}>
-          <AlertTriangle />
-          <div style={{ flex: 1 }}>
-            <p style={{ margin: 0, fontWeight: 600 }}>
-              {highPriorityCount} priority alerts for {stageFilter === 'All' ? 'current crop cycle' : stageFilter}.
-            </p>
-            <span style={{ fontSize: 11, color: 'var(--gray-600)' }}>
-              Stage-aware thresholds combined with live IoT telemetry & weather reasoning.
-            </span>
+            <div style={{ height: 20 }} />
           </div>
         </div>
+      )
+    }
 
-        {/* Live Alert List */}
-        <div className="alert-list">
-          {filteredAlerts.map((alert, i) => {
-            const Icon = alert.icon
-            const status = treatmentStatus[alert.id]
-            return (
-              <div 
-                className={`alert-card interactive animate-in ${alert.type}`} 
-                key={alert.id}
-                style={{ 
-                  animationDelay: `${0.05 + i * 0.05}s`, 
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12
-                }}
-                onClick={() => setSelectedAlert(alert)}
-              >
-                <div className={`alert-indicator ${alert.type}`}>
-                  <Icon />
-                </div>
-                <div className="alert-content" style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className="alert-category-tag">{alert.category}</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: alert.type === 'critical' ? '#fee2e2' : '#fef3c7', color: alert.type === 'critical' ? '#991b1b' : '#92400e' }}>
-                        {alert.tier}
-                      </span>
-                      {status && (
-                        <span className={`status-pill-small ${status}`}>
-                          {status === 'applied' ? 'Applied' : status === 'verified' ? 'Verified' : 'Resolved'}
-                        </span>
-                      )}
-                    </div>
-                    <span className="alert-time">{alert.time}</span>
-                  </div>
 
-                  <h4 style={{ margin: '2px 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>
-                    {alert.title}
-                  </h4>
-                  
-                  <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.4' }}>
-                    {alert.shortDesc}
-                  </p>
+    // =========================================================================
+    // VIEW 2: Alert List Screen (Default View)
+    // =========================================================================
+    const [stageFilter, setStageFilter] = useState('All')
+    const [showThresholdsGuide, setShowThresholdsGuide] = useState(false)
 
-                  <div className="alert-tap-hint">
-                    <span>💡 Tap for Fertilizer & Organic Recommendation</span>
-                    <ChevronRight size={14} />
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+    // Build active alerts list from simulation state
+    const activeSimAlertIds = (farmState.alerts || []).map(a => a.id)
+    
+    // Enrich simulation alerts with detailed remediation blueprints
+    const enrichedSimAlerts = (farmState.alerts || []).map(simAlert => {
+      const blueprint = alertsData.find(a => a.id === simAlert.id) || {}
+      const IconComp = ICON_MAP[simAlert.icon] || blueprint.icon || Leaf
+      return {
+        ...blueprint,
+        ...simAlert,
+        icon: IconComp,
+        isSimulatedActive: true
+      }
+    })
+
+    // Merge with other standard alerts if not already in sim alerts
+    const otherAlerts = alertsData.filter(a => !activeSimAlertIds.includes(a.id))
+    const allCurrentAlerts = [...enrichedSimAlerts, ...otherAlerts]
+
+    const filteredAlerts = stageFilter === 'All'
+      ? allCurrentAlerts
+      : allCurrentAlerts.filter(a => a.growthStage === stageFilter || a.growthStage === 'All Stages')
+
+    const highPriorityCount = filteredAlerts.filter(a => a.severity === 'High' || a.severity === 'Critical').length
+
+    return (
+      <div>
+        <div className="screen-header">
+          {onBack && (
+            <button
+              className="back-btn"
+              onClick={onBack}
+              aria-label="Back to Home"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <h1 style={{ flex: 1, textAlign: 'center', margin: 0, fontSize: 18, fontWeight: 700 }}>
+            Alerts & Recommendations
+          </h1>
+          <button
+            onClick={() => setShowThresholdsGuide(true)}
+            style={{
+              background: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: 8,
+              padding: '6px 10px',
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#166534',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+            title="View Agronomic Decision Thresholds"
+          >
+            <Sliders size={14} />
+            <span>Thresholds</span>
+          </button>
         </div>
-      </div>
+
+        <div className="alerts-screen">
+          {/* Stage Filter Selector */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }} className="animate-in">
+            {['All', 'Flowering & Fruit Setting', 'Vegetative', 'Seedling', 'Fruiting'].map(stg => (
+              <button
+                key={stg}
+                onClick={() => setStageFilter(stg)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: 20,
+                  border: 'none',
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  cursor: 'pointer',
+                  background: stageFilter === stg ? '#16a34a' : '#f3f4f6',
+                  color: stageFilter === stg ? '#fff' : '#4b5563',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {stg === 'All' ? '🌱 All Stages' : `🍅 ${stg}`}
+              </button>
+            ))}
+          </div>
+
+          {/* Summary Card */}
+          <div className="alert-summary animate-in" style={{ marginTop: 8 }}>
+            <AlertTriangle />
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontWeight: 600 }}>
+                {highPriorityCount} priority alerts for {stageFilter === 'All' ? 'current crop cycle' : stageFilter}.
+              </p>
+              <span style={{ fontSize: 11, color: 'var(--gray-600)' }}>
+                Stage-aware thresholds combined with live IoT telemetry & weather reasoning.
+              </span>
+            </div>
+          </div>
+
+          {/* Live Alert List */}
+          <div className="alert-list">
+            {filteredAlerts.map((alert, i) => {
+              const status = treatmentStatus[alert.id]
+              return (
+                <div 
+                  className={`alert-card interactive animate-in ${alert.type}`} 
+                  key={alert.id}
+                  style={{ 
+                    animationDelay: `${0.05 + i * 0.05}s`, 
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12
+                  }}
+                  onClick={() => {
+                    setSelectedAlert(alert);
+                    setHasRevealedPlan(true);
+                  }}
+                >
+                  <div className={`alert-indicator ${alert.type}`}>
+                    {renderAlertIcon(alert.icon, alert.category, 18)}
+                  </div>
+                  <div className="alert-content" style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span className="alert-category-tag">{alert.category}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: alert.type === 'critical' ? '#fee2e2' : '#fef3c7', color: alert.type === 'critical' ? '#991b1b' : '#92400e' }}>
+                          {alert.tier}
+                        </span>
+                        {status && (
+                          <span className={`status-pill-small ${status}`}>
+                            {status === 'applied' ? 'Applied' : status === 'verified' ? 'Verified' : 'Resolved'}
+                          </span>
+                        )}
+                      </div>
+                      <span className="alert-time">{alert.time}</span>
+                    </div>
+
+                    <h4 style={{ margin: '2px 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>
+                      {alert.title}
+                    </h4>
+                    
+                    <p style={{ margin: 0, fontSize: '12px', color: '#555', lineHeight: '1.4' }}>
+                      {alert.shortDesc}
+                    </p>
+
+                    <div 
+                      className="alert-tap-hint"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAlert(alert);
+                        setHasRevealedPlan(true);
+                      }}
+                    >
+                      <span>💡 Tap for Fertilizer & Organic Recommendation</span>
+                      <ChevronRight size={14} />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
 
       {/* DECISION THRESHOLDS GUIDE MODAL */}
       {showThresholdsGuide && (

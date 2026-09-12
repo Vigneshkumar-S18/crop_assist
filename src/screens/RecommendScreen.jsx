@@ -8,7 +8,7 @@ import { useFarmSimulation } from '../simulation/SimulationContext'
 import DemoModeBadge from '../components/DemoModeBadge'
 import FertilizerGraphic from '../components/FertilizerGraphic'
 
-export default function RecommendScreen({ onBack, onNavigateToChat }) {
+export default function RecommendScreen({ onBack, onNavigateToChat, initialStage }) {
   const { farmState, mode } = useFarmSimulation();
   
   // Track default nutrient / recommendation tab based on active farm state
@@ -18,14 +18,29 @@ export default function RecommendScreen({ onBack, onNavigateToChat }) {
     return 'BALANCED';
   };
 
-  const [selectedTopic, setSelectedTopic] = useState(getDefaultNutrient(mode));
+  const getTopicFromStage = (stage) => {
+    if (!stage) return getDefaultNutrient(mode);
+    const s = String(stage).toUpperCase();
+    if (s === 'N' || s.includes('NITROGEN') || s === 'DRY') return 'N';
+    if (s === 'P' || s.includes('PHOSPHORUS')) return 'P';
+    if (s === 'K' || s.includes('POTASSIUM')) return 'K';
+    if (s === 'PROTECT' || s === 'WET' || s.includes('DISEASE') || s.includes('HUMIDITY') || s.includes('SPORE')) return 'PROTECT';
+    if (s === 'BALANCED' || s === 'NORMAL' || s.includes('FLOWER') || s.includes('FRUIT') || s.includes('VEGETATIVE') || s.includes('SEEDLING')) return 'BALANCED';
+    return getDefaultNutrient(mode);
+  };
+
+  const [selectedTopic, setSelectedTopic] = useState(() => initialStage ? getTopicFromStage(initialStage) : getDefaultNutrient(mode));
   const [activeTab, setActiveTab] = useState('Overview');
   const [isManualEntry, setIsManualEntry] = useState(false);
 
-  // Auto-sync active topic whenever the farm state changes (e.g. DRY or WET clicked on Phone 2)
+  // Auto-sync active topic whenever initialStage or farm state changes
   useEffect(() => {
-    setSelectedTopic(getDefaultNutrient(mode));
-  }, [mode]);
+    if (initialStage) {
+      setSelectedTopic(getTopicFromStage(initialStage));
+    } else {
+      setSelectedTopic(getDefaultNutrient(mode));
+    }
+  }, [initialStage, mode]);
 
   // Live telemetry readings derived directly from centralized farm simulation
   const telemetry = {
