@@ -472,6 +472,8 @@ export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRec
     const [hasRevealedPlan, setHasRevealedPlan] = useState(true)
     const [activeSolutionTab, setActiveSolutionTab] = useState('chemical') // 'chemical' | 'organic'
     const [expandedSection, setExpandedSection] = useState(null) // 'why' | 'precautions' | 'protocol' | 'verification'
+    const [stageFilter, setStageFilter] = useState('All')
+    const [showThresholdsGuide, setShowThresholdsGuide] = useState(false)
 
     const showToast = (msg) => {
       setToastMessage(msg)
@@ -927,8 +929,6 @@ export default function AlertsScreen({ onBack, onNavigateToChat, onNavigateToRec
     // =========================================================================
     // VIEW 2: Alert List Screen (Default View)
     // =========================================================================
-    const [stageFilter, setStageFilter] = useState('All')
-    const [showThresholdsGuide, setShowThresholdsGuide] = useState(false)
 
     // Build active alerts list from simulation state
     const activeSimAlertIds = (farmState.alerts || []).map(a => a.id)
